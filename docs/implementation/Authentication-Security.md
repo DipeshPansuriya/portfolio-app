@@ -79,9 +79,9 @@ Set on every response by the app:
 | `referrer-policy` | `strict-origin-when-cross-origin` |
 | `permissions-policy` | camera, microphone and geolocation off |
 | `cross-origin-opener-policy` | `same-origin` |
-| `strict-transport-security` | production only: one year, `includeSubDomains` |
+| `strict-transport-security` | production only: one year, this host only (no `includeSubDomains`) |
 
-`includeSubDomains` affects every subdomain when the main domain is used: check that first. `/admin` is marked
+The header has no `includeSubDomains`, so it covers this host only. `/admin` is marked
 `noindex`.
 
 ## Data held
@@ -91,7 +91,7 @@ Set on every response by the app:
 | Public profile content | content revisions | public by design; every revision is kept |
 | Owner login email and password hash | `users` | private |
 | IP address and browser string | `sessions`; IP also in `audit_log` | no automatic deletion of the audit log |
-| Database dumps | backup volume | hold the above; owner-only file mode |
+| Database dumps | dumps folder of the one volume (`portfolio/backups`); the `postgres` container can reach it too on the own-database path | hold the above; owner-only file mode |
 
 The audit log records sign-ins, failures, limits, saves, refused saves, restores and password changes. Encryption of
 disks and backups on a server is UNVERIFIED.

@@ -3,8 +3,19 @@
 An interactive portfolio you can **read** or **drive**: a 3D circuit that opens one chapter per gate, a plain
 reading mode with the same content, and an `/admin` editor that publishes changes without a rebuild.
 
-**Status:** release 1 is built and tested locally. It is **not deployed**: there is no live site, no published image
-and no active release pipeline.
+**Repository:** https://github.com/DipeshPansuriya/portfolio-app
+
+**Status (2026-11-26):**
+
+| Item | State | Evidence |
+|---|---|---|
+| Application (reading mode, drive, editor, API, content storage) | built; tested on SQLite and PostgreSQL | [Test results](docs/implementation/Testing-QA-Debugging.md#3-recorded-results-2026-11-26) |
+| GitHub checks on pull requests and `main` (security, quality, automated review, CodeQL, Dependabot) | **done**: green on the published repository | [CI and PR checks](docs/CI-AND-PR-CHECKS.md) |
+| GitHub settings (rules for `main`, secret scanning, push protection, Dependabot, CodeQL) | **done**, auto-merge off on purpose | [GitHub policy](docs/GITHUB-POLICY.md) |
+| Jenkins pipeline (main only) | written; **not active**, no job exists | [CI and PR checks](docs/CI-AND-PR-CHECKS.md#1-where-each-check-runs) |
+| Container image pushed to the registry | **not done** | release stage not run |
+| Deployed on a VPS (server, TLS, DNS, backups on a server) | **not done**; UNVERIFIED | [VPS deployment](docs/implementation/VPS-Deployment.md) |
+| Browsers other than Chrome, real phones, screen readers | **not done**; UNVERIFIED | [Known limits](#known-limits) |
 
 ## Features
 
@@ -17,7 +28,7 @@ and no active release pipeline.
 | Search and sharing | the production server fills page title, share title, structured data and the no-script note from the live content; two optional description fields |
 | Fast first paint | the server renders the hero into `/`; long-lived compressed assets; no 3D library in the first load |
 | Theme | follows the system until the visitor chooses |
-| Operations | one container image, health and readiness endpoints, audit log, deploy with rollback, nightly database dump and an on-demand restore test |
+| Operations | one container image, health and readiness endpoints, audit log, deploy with rollback, nightly database dump and an on-demand restore test (written; not run on a server) |
 
 Small interface text (buttons, hints, menu labels) stays in code. The portfolio content is stored in the database
 and edited at `/admin`.
@@ -30,8 +41,8 @@ and edited at `/admin`.
 | 3D | three, react-three-fiber, drei |
 | Server | Node.js (`node:http`, no web framework); the only runtime package is `pg` |
 | Database | PostgreSQL 17 in production, built-in SQLite for local work and tests |
-| Tests | `node:test` |
-| Delivery | Docker, Docker Compose, Traefik, Jenkins (written, not active), GitHub Actions |
+| Tests | `node:test`, 16 test files in the published copy |
+| Delivery | Docker, Docker Compose, Traefik (written); GitHub Actions (running); Jenkins (written, not active) |
 
 ```text
  browser ──> reverse proxy (TLS) ──> app: static files, hero render, API ──> PostgreSQL
@@ -43,7 +54,7 @@ More: [Architecture](docs/ARCHITECTURE.md), [runtime diagram](docs/diagrams/runt
 
 ## Run it locally
 
-Needs Node.js 22.18 or newer (developed on Node 26), npm and git.
+Needs Node.js 22.18 or newer (developed and tested on Node 26), npm and git.
 
 ```bash
 git clone https://github.com/DipeshPansuriya/portfolio-app.git
@@ -92,35 +103,57 @@ Names only. Secrets live in `.env` (git-ignored) or on the server, never in git 
 Server stack only: `PORTFOLIO_HOST`, `DB_PASSWORD`, `POSTGRES_PASSWORD`, `BACKUP_DB_PASSWORD`, `TRAEFIK_NETWORK`,
 `APP_IMAGE`. Pipeline and scripts: [deploy guide](deploy/README.md#variables).
 
-## Tests and checks
+## Tests
+
+Run the tests locally:
+
+```bash
+npm test                                        # SQLite (gate 3)
+TEST_DATABASE_URL=postgres://... npm test       # PostgreSQL (gate 4), a disposable server only
+```
+
+The tests live in `tests/`, 16 files in the published copy, and the test helper `tests/harness.mjs` is not a test. What each file covers,
+and what is not covered:
+[CI and PR checks, section 4](docs/CI-AND-PR-CHECKS.md#4-test-files-and-what-they-cover).
+
+| Run | SQLite | PostgreSQL | Skipped or todo | Date |
+|---|---|---|---|---|
+| Local, commit `0813095` (current head) | 170 of 170 | 170 of 170 | 0 | 2026-11-26; independent re-check pending |
+| Local, commit `c270d08` (earlier) | 156 of 156 | 156 of 156 | 0 | 2026-11-26 |
+| Published repository (GitHub runs) | 151 of 151 | 151 of 151 | 0 | 2026-11-26 |
+
+A skipped or todo test fails the run. Counts are rechecked after each code change; the table shows the last recorded run.
+
+Other checks (GitHub Actions runs most of them on each pull request and on `main`; section 1 of the CI document lists which):
 
 ```bash
 npm run typecheck
-npm test                                      # SQLite
 npm run build && node scripts/check-bundle.mjs  # first load: JavaScript 160 kB, CSS 15 kB (gzip)
 python3 scripts/check_secrets.py
 python3 scripts/check_docs.py
-./scripts/security_audit.sh                   # includes npm audit (network); --quick skips it
-sh scripts/ci.sh                              # all eight gates; needs Docker and the pinned images
+./scripts/security_audit.sh                     # includes npm audit (network); --quick skips it
+sh scripts/ci.sh                                # all eight gates; needs Docker and the pinned images
 ```
 
-`TEST_DATABASE_URL=...` runs the tests on PostgreSQL. They create and drop their own databases, so point it only at
-a server you can throw away. Results and gaps: [Testing, QA and debugging](docs/implementation/Testing-QA-Debugging.md).
+Pull request checks, what each one catches, and how Jenkins runs the same gates on `main`:
+[CI and PR checks](docs/CI-AND-PR-CHECKS.md). Results and gaps:
+[Testing, QA and debugging](docs/implementation/Testing-QA-Debugging.md).
 
 ## Deploy
 
-One image runs behind a reverse proxy with PostgreSQL. Commands, variables, backups and rollback are in the
-[deploy guide](deploy/README.md); decisions in [ADR 0004](docs/adr/0004-deploy-hostinger-vps.md) and
-[ADR 0005](docs/adr/0005-database-storage-and-backups.md). The storage choice is provisional and the live server
-has not been checked.
+One image runs behind a reverse proxy with PostgreSQL. **Not deployed yet.** The order of steps, the decisions still
+open and what is unverified are in the [VPS deployment guide](docs/implementation/VPS-Deployment.md). Commands,
+variables, backups and rollback: [deploy guide](deploy/README.md). Decisions: [ADR 0004](docs/adr/0004-deploy-hostinger-vps.md)
+and [ADR 0005](docs/adr/0005-database-storage-and-backups.md). The storage choice is provisional and no server has been checked.
 
 ## Security
 
 - scrypt password hashing, hashed session tokens, CSRF token, Host, Origin and content type checks, sign-in limits,
   strict Content-Security-Policy, field validation, audit log.
 - Non-root, read-only container; no published database port.
-- Secret scanning in git hooks and CI; a repeatable [security audit](scripts/security_audit.sh).
-- GitHub settings (branch protection, secret scanning, CodeQL and more) are **to be applied at publish**:
+- Secret scanning in git hooks, in GitHub Actions and in gate 7; a repeatable [security audit](scripts/security_audit.sh).
+- GitHub protection is applied: rules for `main`, secret scanning with push protection, Dependabot alerts and updates,
+  private vulnerability reporting, CodeQL. Auto-merge is off on purpose: a person merges each pull request.
   [GitHub policy](docs/GITHUB-POLICY.md).
 
 Details and limits: [Authentication and security](docs/implementation/Authentication-Security.md). Report a problem
@@ -128,8 +161,13 @@ privately: [SECURITY.md](SECURITY.md).
 
 ## Known limits
 
-- Not deployed. Behaviour on a real server, proxy, TLS and other processor architectures is UNVERIFIED.
-- Browser checks were run in Chrome only. Safari, Firefox, real phones and screen readers are UNVERIFIED.
+- **Not deployed.** Behaviour on a real server, behind a real proxy and with TLS is UNVERIFIED.
+- **Browsers:** checks ran in Chrome only. Safari and Firefox are UNVERIFIED. Real phones, screen readers and foldable
+  screens are not tested.
+- **QA defects D1-D10** from the last independent QA pass (2026-11-26; narrow-screen contact card, nav links on narrow
+  screens, long unbroken words, a gate card and its close button, emoji initials, accent colours, duplicate chapter ids,
+  an admin hint, a reserved chapter id, a headline of only `|`) are **fixed in the code; independent re-check pending**.
+  Details: [Testing, QA and debugging](docs/implementation/Testing-QA-Debugging.md).
 - One owner account, no multi-factor sign-in, one application instance.
 - During a sustained flood of sign-in attempts, a new browser (one that has not signed in before) may get 503 and
   be unable to sign in while the flood lasts.
@@ -143,7 +181,7 @@ privately: [SECURITY.md](SECURITY.md).
 | `server/` | API, sign-in, request checks, content store, static files, database drivers |
 | `shared/` | code used by both sides |
 | `content/` | seed content, used only for an empty database |
-| `tests/` | test suites |
+| `tests/` | test suites (16 files in the published copy) |
 | `scripts/` | CI gates, secret scan, audit, hooks, password reset |
 | `deploy/` | server stack, backup and restore, deploy and rollback |
 | `docs/` | documentation |
@@ -158,6 +196,8 @@ privately: [SECURITY.md](SECURITY.md).
 | [Database](docs/DATABASE.md) | tables, content document, backups |
 | [API](docs/API.md) | endpoints and errors |
 | [Contributor and agent guide](docs/AGENTS.md) | roles and rules |
+| [CI and PR checks](docs/CI-AND-PR-CHECKS.md) | every check on pull requests and `main`, tests by file, what is not covered |
+| [VPS deployment](docs/implementation/VPS-Deployment.md) | order of the server deploy, backups, rollback, open decisions |
 | [Setup](docs/implementation/Setup-Initialisation.md), [Features](docs/implementation/Feature-Development.md), [Authentication and security](docs/implementation/Authentication-Security.md) | implementation |
 | [Integrations](docs/implementation/Integrations.md), [MCP](docs/implementation/MCP-Connection.md), [Testing](docs/implementation/Testing-QA-Debugging.md), [Implementation status](docs/implementation/Project-Implementation.md) | implementation |
 | [Project summary](docs/Project_Summary.md), [AI prompts](docs/AI-PROMPTS.md) | analysis |

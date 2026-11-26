@@ -47,6 +47,9 @@ REQUIRED_CHECKS = [
     "Build and bundle budget",
     "Automated review",
 ]
+# The app that must report them: GitHub Actions (GET /apps/github-actions). Matched by name
+# only, a status of the same name from any other app or token would satisfy the rule.
+ACTIONS_APP_ID = 15368
 
 REPO_SETTINGS = {
     "description": DESCRIPTION,
@@ -58,7 +61,9 @@ REPO_SETTINGS = {
     "allow_merge_commit": True,
     "allow_rebase_merge": False,
     "delete_branch_on_merge": True,
-    "allow_auto_merge": True,
+    # Off: code on main runs where it can deploy, so every pull request, Dependabot's too,
+    # is read and merged by hand.
+    "allow_auto_merge": False,
     "allow_update_branch": True,
 }
 SCANNING = {
@@ -69,7 +74,7 @@ SCANNING = {
 }
 ACTIONS = {"enabled": True, "allowed_actions": "all", "sha_pinning_required": True}
 TOKEN_DEFAULTS = {"default_workflow_permissions": "read", "can_approve_pull_request_reviews": False}
-FORK_APPROVAL = {"approval_policy": "first_time_contributors"}
+FORK_APPROVAL = {"approval_policy": "all_external_contributors"}
 CODEQL = {
     "state": "configured",
     "query_suite": "default",
@@ -109,7 +114,9 @@ RULESETS = [
                 "parameters": {
                     "strict_required_status_checks_policy": True,
                     "do_not_enforce_on_create": False,
-                    "required_status_checks": [{"context": name} for name in REQUIRED_CHECKS],
+                    "required_status_checks": [
+                        {"context": name, "integration_id": ACTIONS_APP_ID} for name in REQUIRED_CHECKS
+                    ],
                 },
             },
         ],
@@ -292,8 +299,10 @@ def check() -> None:
             for key, wanted in rule.get("parameters", {}).items():
                 have = rules.get(rule["type"], {}).get(key)
                 if key == "required_status_checks":
-                    # An extra check is stricter, so only a missing one fails.
-                    ok = {c["context"] for c in wanted} <= {c.get("context") for c in have or []}
+                    # An extra check is stricter, so only a missing one (or another app) fails.
+                    ok = {(c["context"], c["integration_id"]) for c in wanted} <= {
+                        (c.get("context"), c.get("integration_id")) for c in have or []
+                    }
                 else:
                     ok = same(have, wanted)
                 expect(f"ruleset {name} {rule['type']}.{key}", ok)

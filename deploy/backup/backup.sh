@@ -15,7 +15,8 @@
 # `if` or `||`.
 set -eu
 umask 077 # dumps hold the password hash and visitor addresses: owner only
-BACKUP_DIR="${BACKUP_DIR:-/var/lib/postgresql/dumps}"
+# A folder of the one volume (compose.yaml).
+BACKUP_DIR="${BACKUP_DIR:-/var/lib/postgresql/data/portfolio/backups}"
 
 drop() { # <part file> <reason>; always fails
   rm -f "$1"

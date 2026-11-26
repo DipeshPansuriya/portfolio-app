@@ -14,7 +14,7 @@ export function Footer() {
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className="grid size-7 place-items-center rounded-md border border-line-strong bg-surface-2 font-mono text-[10px]">
+              <span className="grid size-7 shrink-0 place-items-center rounded-md border border-line-strong bg-surface-2 font-mono text-[10px]">
                 {profile.initials}
               </span>
               <span className="font-display text-[13px] font-medium tracking-tight">{profile.name}</span>
@@ -65,7 +65,7 @@ export function Footer() {
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
             © {year} {profile.name} — built with React, Three.js & Tailwind
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-4">
             <a
               href="/admin"
               className="py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-faint transition-colors hover:text-ink"

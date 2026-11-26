@@ -151,7 +151,8 @@ export function GameHUD({
                 className="absolute left-0 top-full mt-2 w-max max-w-[10.5rem]"
               >
                 <div className="glass rounded-xl px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
-                  {toast}
+                  {/* A long chapter name must not grow the notice down over the gate sign. */}
+                  <p className="line-clamp-3">{toast}</p>
                 </div>
               </motion.div>
             )}
@@ -211,20 +212,20 @@ export function GameHUD({
               touch ? 'bottom-36' : 'bottom-24'
             }`}
           >
-            <div className="glass flex items-center gap-2.5 rounded-full px-4 py-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-faint">Entered</span>
-              <span className="font-display text-sm font-medium">{zoneLabel}</span>
+            <div className="glass mx-3 flex items-center gap-2.5 rounded-full px-4 py-2">
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-faint">Entered</span>
+              <span className="line-clamp-2 min-w-0 font-display text-sm font-medium">{zoneLabel}</span>
               {onOpenZone &&
                 (touch ? (
                   <button
                     type="button"
                     onClick={onOpenZone}
-                    className="pointer-events-auto -my-1 rounded-full border border-line-strong px-3 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-accent"
+                    className="pointer-events-auto -my-1 shrink-0 rounded-full border border-line-strong px-3 py-1 font-mono text-[11px] uppercase tracking-[0.14em] text-accent"
                   >
                     Open
                   </button>
                 ) : (
-                  <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent">press E</span>
+                  <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.14em] text-accent">press E</span>
                 ))}
             </div>
           </motion.div>

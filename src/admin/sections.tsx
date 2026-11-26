@@ -1,12 +1,15 @@
-import { useCallback, useState, type SelectHTMLAttributes } from 'react'
+import { useCallback, useContext, useEffect, useState, type SelectHTMLAttributes } from 'react'
 import type { Chapter, Meta, Principle, SiteContent, StackItem } from '../content/types'
 import { shapeProblem } from '../content/validate'
+import { firstCharacters } from '../content/text'
 import { iconSlugs } from '../../shared/icon-slugs'
+import { chapterToOpen } from './fieldErrors'
 import {
   Button,
   Card,
   ColorInput,
   Field,
+  FieldErrors,
   NumberInput,
   StringList,
   TextArea,
@@ -34,17 +37,17 @@ export function ProfileSection({ draft, patch }: SectionProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="Identity" subtitle="Shown in the nav, footer, hero badge and contact block.">
+      <Card title="Identity" subtitle="Who the site is about: the nav, the footer and the page title use these.">
         <Field label="Full name">
           <TextInput path="profile.name" value={p.name} onChange={(v) => set('name', v)} />
         </Field>
         <Field label="Initials" hint="Up to three characters, used in the nav and footer marks.">
-          <TextInput path="profile.initials" value={p.initials} onChange={(v) => set('initials', v.slice(0, 3))} />
+          <TextInput path="profile.initials" value={p.initials} onChange={(v) => set('initials', firstCharacters(v, 3))} />
         </Field>
         <Field label="Role">
           <TextInput path="profile.role" value={p.role} onChange={(v) => set('role', v)} />
         </Field>
-        <Field label="Availability">
+        <Field label="Availability" hint="Shown only in the chapter menu, which replaces the nav links on narrow screens.">
           <TextInput path="profile.availability" value={p.availability} onChange={(v) => set('availability', v)} />
         </Field>
         <Field label="Tagline" wide hint="One sentence. Appears in the footer.">
@@ -273,6 +276,12 @@ export function ChaptersSection({ draft, patch }: SectionProps) {
   // Keyed by position, not id: editing the id field must not collapse the panel
   // out from under the caret.
   const [open, setOpen] = useState<number | null>(0)
+  const errors = useContext(FieldErrors)
+
+  // A refused field must be on screen to be seen.
+  useEffect(() => {
+    setOpen((current) => chapterToOpen(errors, current))
+  }, [errors])
 
   const move = (from: number, to: number) =>
     patch((prev) => {

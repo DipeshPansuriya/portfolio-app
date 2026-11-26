@@ -1,29 +1,35 @@
 # Local rehearsal only (deploy/rehearse.sh). Never copied to the server.
 # - No Traefik here: the web network is private, with no way out.
-# - This Mac shares only one folder with Docker, so the two script folders reach the
-#   containers as read-only volumes that rehearse.sh fills with `docker cp`.
+# - This Mac shares only one folder with Docker, so the two script folders come from a
+#   `rehearsal` folder inside the one volume, which rehearse.sh makes and fills first.
+#   No second volume.
 services:
   postgres:
-    volumes: !override
-      - portfolio-pg-data:/var/lib/postgresql/data
-      - init-files:/docker-entrypoint-initdb.d:ro
+    volumes:
+      - type: volume
+        source: data
+        target: /docker-entrypoint-initdb.d
+        read_only: true
+        volume:
+          subpath: rehearsal/postgres-init
+          nocopy: true
   pg-backup:
-    volumes: !override
-      - portfolio-pg-backups:/var/lib/postgresql
-      - backup-files:/scripts:ro
+    volumes: &scripts
+      - type: volume
+        source: data
+        target: /scripts
+        read_only: true
+        volume:
+          subpath: rehearsal/backup
+          nocopy: true
   pg-restore-test:
-    volumes: !override
-      - portfolio-pg-backups:/var/lib/postgresql:ro
-      - backup-files:/scripts:ro
+    volumes: *scripts
 
 networks:
   web: !override
     internal: true
 
 volumes:
-  init-files:
+  data: !override
     external: true
-    name: ${COMPOSE_PROJECT_NAME}-init-files
-  backup-files:
-    external: true
-    name: ${COMPOSE_PROJECT_NAME}-backup-files
+    name: ${DATA_VOLUME:-${COMPOSE_PROJECT_NAME}-data}

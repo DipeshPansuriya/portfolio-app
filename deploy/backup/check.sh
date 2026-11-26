@@ -4,7 +4,7 @@
 # Unhealthy when the last run failed, or the newest dump is older than the limit.
 #   BACKUP_MAX_AGE_MINUTES   default 1560 (26 hours)
 set -eu
-BACKUP_DIR="${BACKUP_DIR:-/var/lib/postgresql/dumps}"
+BACKUP_DIR="${BACKUP_DIR:-/var/lib/postgresql/data/portfolio/backups}"
 if [ -f "$BACKUP_DIR/LAST_FAILURE" ]; then
   echo "[backup] ALERT: the last run failed: $(cat "$BACKUP_DIR/LAST_FAILURE")" >&2
   exit 1

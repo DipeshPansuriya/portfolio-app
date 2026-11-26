@@ -74,9 +74,9 @@ function Shell({
       aria-label={`${zone.label} chapter`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="size-1.5 rounded-full" style={{ background: zone.color }} />
+            <span className="size-1.5 shrink-0 rounded-full" style={{ background: zone.color }} />
             <span className="mono-label">{zone.kicker}</span>
           </div>
           <h3 className="mt-1.5 font-display text-xl font-semibold tracking-tight">{zone.label}</h3>
@@ -85,7 +85,7 @@ function Shell({
           type="button"
           onClick={onClose}
           aria-label="Close panel"
-          className="grid size-8 place-items-center rounded-lg border border-line text-muted transition-colors hover:text-ink"
+          className="grid size-8 shrink-0 place-items-center rounded-lg border border-line text-muted transition-colors hover:text-ink"
         >
           <CloseIcon className="size-4" />
         </button>

@@ -73,7 +73,7 @@ export function IntroCard({ chapters, bestMs, onStart, onExit }: Props) {
                 key={c.id}
                 className="flex items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-2"
               >
-                <span className="size-1.5 rounded-full" style={{ background: c.accent }} />
+                <span className="size-1.5 shrink-0 rounded-full" style={{ background: c.accent }} />
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
                   {String(i + 1).padStart(2, '0')} {c.label}
                 </span>

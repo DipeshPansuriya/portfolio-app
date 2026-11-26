@@ -5,6 +5,14 @@ yet.** The public repository starts from a single clean commit, so earlier histo
 
 ## 1.0.0 (unreleased)
 
+### Fixed and documented (2026-11-26)
+
+- Quality defects D1-D10 from the independent QA pass are fixed in the code; the independent re-check is pending.
+- The HSTS header covers this host only (no `includeSubDomains`).
+- Release pipeline: a build agent (gates 1-8, linux/amd64) and a deploy agent (stages 9-11) with an approval step;
+  the deploy refuses without `TRUSTED_PROXY_IPS`; a released database stays on its volume. Not run on Jenkins or on a server.
+- Documents added: CI and pull request checks, VPS deployment; README status and test section updated.
+
 ### Added
 
 - Reading mode and the 3D drive circuit with gates, timed lap, best time, keyboard and touch controls.

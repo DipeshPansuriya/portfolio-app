@@ -11,7 +11,13 @@
 # after it. A rollback never repeats the public URL check (PUBLIC_CHECK): when the public
 # address is what fails, the older image would "fail" too.
 #   COMPOSE_PROJECT  default portfolio     COMPOSE_EXTRA  one more compose file
+# .env must name the reverse proxy in TRUSTED_PROXY_IPS.
+# Own database: it must be on the volume of the last release (releases.log), else nothing is
+# started. After a copy to another volume: DATA_MOVED_TO=<that volume> (README, "Moving the
+# database to another volume").
 #   WAIT_SECONDS     time to become healthy, default 90
+# The compose files come from COMPOSE_FILE in .env (default compose.yaml: own PostgreSQL;
+# with compose.shared-db.yaml there is no database service to start).
 # A rollback changes the app image only. It never restores the database.
 set -eu
 umask 077
@@ -20,22 +26,31 @@ PROJECT="${COMPOSE_PROJECT:-portfolio}"
 WAIT="${WAIT_SECONDS:-90}"
 export COMPOSE_PROJECT="$PROJECT"
 # Only the files here decide these, never the caller's shell.
-unset APP_IMAGE DATABASE_URL DB_PASSWORD BACKUP_DB_PASSWORD POSTGRES_PASSWORD ADMIN_PASSWORD COMPOSE_FILE
+unset APP_IMAGE DATABASE_URL DB_PASSWORD BACKUP_DB_PASSWORD POSTGRES_PASSWORD ADMIN_PASSWORD COMPOSE_FILE \
+  DATA_VOLUME DB_HOST DB_PORT DB_NETWORK TRUSTED_PROXY_IPS
 
 say() { echo "[deploy] $*"; }
 die() { echo "[deploy] $*" >&2; exit 1; }
 image_in() { [ ! -f "$1" ] || sed -n 's/^APP_IMAGE=//p' "$1" | tail -n 1; }
+setting() { sed -n "s/^$1=//p" .env | tail -n 1; }
+
+released_database() { # "<own|shared> <volume>" of the last release that worked, else nothing
+  [ ! -f releases.log ] || sed -n \
+    -e 's/^[^ ]* deployed .* volume=\([^ ]*\) database=\([^ ]*\) .*/\2 \1/p' \
+    -e 's/^[^ ]* rolled-back .* volume=\([^ ]*\) database=\([^ ]*\) .*/\2 \1/p' releases.log | tail -n 1
+}
 
 compose_as() { # <image> <compose arguments...>
   image="$1"
   shift
-  APP_IMAGE="$image" docker compose -p "$PROJECT" -f compose.yaml ${COMPOSE_EXTRA:+-f "$COMPOSE_EXTRA"} \
-    --env-file .env "$@"
+  APP_IMAGE="$image" COMPOSE_FILE="$files" docker compose -p "$PROJECT" --env-file .env "$@"
 }
 
 record() { # <result> <image>
   id="$(docker image inspect -f '{{.Id}}' "$2" 2>/dev/null || echo unknown)"
-  echo "$(date -u +%FT%TZ) $1 image=$2 id=$id volumes=$PROJECT-pg-data,$PROJECT-pg-backups project=$PROJECT" >>releases.log
+  # The registry digest (name@sha256:...); `none` for an image that has none.
+  digest="$(docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$2" 2>/dev/null | head -n 1)" || digest=
+  echo "$(date -u +%FT%TZ) $1 image=$2 id=$id digest=${digest:-none} volume=$volume database=$database project=$PROJECT" >>releases.log
 }
 
 activate() { # <image>; the app and, through depends_on, the database
@@ -69,6 +84,51 @@ if [ "${1:-}" = --undo ]; then
 fi
 [ $# -eq 1 ] || die "$usage"
 [ -f .env ] || die 'no .env here (bootstrap-env.sh writes it)'
+# The app trusts X-Forwarded-For from these peers only. Without a list it trusts every
+# private peer, so any container on its networks could forge the visitor's address.
+proxies="$(setting TRUSTED_PROXY_IPS)"
+need='TRUSTED_PROXY_IPS in .env must list the reverse proxy: an address, or a subnet of /16 (IPv6 /64) or narrower; commas between, no quotes; nothing changed'
+case "$proxies" in *[!0-9A-Fa-f.:/,\ ]*) die "$need" ;; esac
+entries=0
+# Only digits, hex letters and . : / are left, so nothing here can match a file name.
+for entry in $(printf '%s' "$proxies" | tr ',' ' '); do
+  printf '%s\n' "$entry" | grep -qxE \
+    '([0-9]{1,3}\.){3}[0-9]{1,3}(/(1[6-9]|2[0-9]|3[0-2]))?|[0-9A-Fa-f]*:[0-9A-Fa-f:]*:[0-9A-Fa-f]*(/(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-8]))?' ||
+    die "$need"
+  entries=$((entries + 1))
+done
+[ "$entries" -gt 0 ] || die "$need"
+files="$(sed -n 's/^COMPOSE_FILE=//p' .env | tail -n 1)"
+files="${files:-compose.yaml}"
+case ":$files:" in
+  *:compose.shared-db.yaml:*) database=shared ;;
+  *) database=own ;;
+esac
+files="$files${COMPOSE_EXTRA:+:$COMPOSE_EXTRA}"
+# An existing volume (compose.shared-volume.yaml), else the project's own.
+volume="$(setting DATA_VOLUME)"
+case ":$files:" in
+  *:compose.shared-volume.yaml:*) ;;
+  *) [ -z "$volume" ] ||
+    die 'DATA_VOLUME is set but COMPOSE_FILE lacks compose.shared-volume.yaml; nothing changed' ;;
+esac
+volume="${volume:-$PROJECT-data}"
+if [ "$database" = shared ]; then
+  # The app and the dump jobs must use the same server, or the dumps miss the live data.
+  # Names only in the messages: DATABASE_URL holds a password.
+  url="$(setting DATABASE_URL)"
+  url="${url##*@}"
+  url="${url%%\?*}"
+  server="${url%%/*}"
+  case "$server" in *:*) ;; *) server="$server:5432" ;; esac
+  port="$(setting DB_PORT)"
+  [ "$server/${url#*/}" = "$(setting DB_HOST):${port:-5432}/portfolio" ] ||
+    die 'DATABASE_URL must point to DB_HOST, DB_PORT (default 5432) and the database portfolio; nothing changed'
+  own="$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" \
+    --filter label=com.docker.compose.service=postgres)"
+  [ -z "$own" ] ||
+    die 'this server still has its own database container: moving to a shared database is done by hand (README, "From an own database to a shared one"); nothing changed'
+fi
 rollback=
 case "$1" in
   --rollback)
@@ -94,6 +154,21 @@ case "${target##*/}" in
   *) die "the image needs an exact tag or digest: $target" ;;
 esac
 
+# A database started on another volume is a new, empty one: the site would come up without its
+# content, and new edits would go there. Only a stated move changes the volume.
+moved=
+if [ "$database" = own ] && [ -n "$current" ]; then
+  was="$(released_database)"
+  if [ -n "$was" ] && [ "$was" != "own $volume" ]; then
+    [ "${DATA_MOVED_TO:-}" = "$volume" ] ||
+      die "the last release used database '$was' (kind, volume); these settings use 'own $volume'. Nothing changed (README, \"Moving the database to another volume\")"
+    running="$(docker ps -q --filter "label=com.docker.compose.project=$PROJECT" \
+      --filter label=com.docker.compose.service=postgres)"
+    [ -z "$running" ] || die 'stop the app and the database before moving to another volume; nothing changed'
+    moved=1
+  fi
+fi
+
 mkdir .deploy.lock 2>/dev/null || die 'another deploy is running (or remove the folder .deploy.lock)'
 trap 'rmdir .deploy.lock' EXIT
 trap 'exit 130' INT TERM
@@ -102,9 +177,33 @@ trap 'exit 130' INT TERM
 [ -n "$undo" ] || rm -f switched.env
 
 docker image inspect "$target" >/dev/null 2>&1 || docker pull "$target" || die "cannot get $target; nothing changed"
+arch="$(docker image inspect -f '{{.Architecture}}' "$target")" || arch=
+server_arch="$(docker version -f '{{.Server.Arch}}')" || server_arch=
+[ -n "$arch" ] && [ "$arch" = "$server_arch" ] ||
+  die "$target is built for ${arch:-an unknown processor}, this server is ${server_arch:-unknown}; nothing changed"
 
-# Dump before anything changes. Only a first deploy has no database to dump.
-if [ -n "$current" ] || docker volume inspect "$PROJECT-pg-data" >/dev/null 2>&1; then
+# The compose files with these settings are checked before anything is touched.
+compose_as "$target" config -q || die 'the compose files or their settings are not valid; nothing changed'
+
+# A released own database must be in the volume, before anything makes a volume or a folder.
+if [ "$database" = own ] && [ -n "$current" ]; then
+  docker volume inspect "$volume" >/dev/null 2>&1 ||
+    die "no volume $volume: the released database is not there; nothing changed"
+  compose_as "$current" run --rm -T --no-deps --entrypoint sh pg-folders \
+    -c 'test -s /var/lib/postgresql/data/portfolio/pgdata/PG_VERSION' ||
+    die "no database found in volume $volume (portfolio/pgdata); nothing changed"
+fi
+
+# Dump before anything changes. Only a first deploy of an own database has none to dump;
+# a shared one exists before the first deploy.
+dump=
+if [ "$database" = shared ] || [ -n "$current" ] || docker volume inspect "$volume" >/dev/null 2>&1; then
+  dump=1
+fi
+# portfolio/ and its dumps folder exist before any service mounts them.
+compose_as "${current:-$target}" run --rm -T --no-deps pg-folders ||
+  die 'the folders in the volume could not be made; nothing was deployed'
+if [ -n "$dump" ]; then
   say 'dumping the database first'
   # Released: start a stopped database as it is, never recreate it here. Nothing released
   # yet: a corrected setting may replace it, and a database without tables is not an error.
@@ -114,9 +213,13 @@ if [ -n "$current" ] || docker volume inspect "$PROJECT-pg-data" >/dev/null 2>&1
     keep=
     empty_ok=1
   fi
-  # shellcheck disable=SC2086 # one word or none
-  compose_as "${current:-$target}" up -d $keep --wait --wait-timeout "$WAIT" --no-build --pull missing postgres ||
-    die 'the database did not become healthy; nothing was deployed'
+  # After a move the database starts on the new volume, and the strict dump reads the copy.
+  [ -z "$moved" ] || keep=
+  if [ "$database" = own ]; then
+    # shellcheck disable=SC2086 # one word or none
+    compose_as "${current:-$target}" up -d $keep --wait --wait-timeout "$WAIT" --no-build --pull missing postgres ||
+      die 'the database did not become healthy; nothing was deployed'
+  fi
   compose_as "${current:-$target}" run --rm -T --no-deps -e RUN_ONCE=1 -e "SKIP_IF_EMPTY=$empty_ok" pg-backup ||
     die 'the dump failed; nothing was deployed'
 fi

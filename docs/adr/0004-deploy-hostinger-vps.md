@@ -7,7 +7,7 @@ Date: 2026-11-26. Status: Accepted as design. Nothing deployed.
 - Standard stack for the maintainer's projects: GitHub, Jenkins, Hostinger, with the container rules in the
   maintainer's standard (one image, no `latest`, no root, resource limits, no secrets in images).
 - Existing pattern: a virtual server with Docker and Traefik (`websecure`, resolver `letsencrypt`), compose under
-  `/docker/<project>`, Jenkins on the same server deploying through the Docker socket, images on Docker Hub.
+  `/docker/<project>`, Jenkins on the same server deploying through the Docker socket, images on Docker Hub (at the time; now ghcr.io, see the image line below).
 
 ## Options considered
 
@@ -20,7 +20,7 @@ Date: 2026-11-26. Status: Accepted as design. Nothing deployed.
 ## Decision
 
 **Image (frontend + backend in one image, the choice the docker standard asks to record).**
-- `docker.io/<namespace>/portfolio:<git short sha>`; the name is set in one place (`APP_IMAGE`). No `latest`.
+- `ghcr.io/dipeshpansuriya/portfolio-app:<version>-<sha8>` (changed 2026-11-26 from Docker Hub; set in `scripts/ci.sh`). No `latest`.
 - Multi-stage build. Base `node:26-alpine` pinned to an exact version and digest (26 is what tests ran on).
 - Final stage: `server/`, `shared/`, `content/`, `dist/`, `dist-server/`, `scripts/reset-password.mjs`,
   `scripts/db-check.mjs`, `package.json`, production `node_modules` (`pg` only).
@@ -51,8 +51,8 @@ labels are final.
 | `ADMIN_PASSWORD` | yes | first boot only, then removed from the running config |
 | `DATABASE_URL`, `DB_PASSWORD`, `POSTGRES_PASSWORD`, `BACKUP_DB_PASSWORD` | yes | server `.env` only (`BACKUP_DB_PASSWORD`: read-only backup role) |
 
-- Server secrets: `/docker/portfolio/.env`, root-only, mode 600, made by a bootstrap script.
-- Jenkins reuses credential ids `docker-hub-creds` and `docker-hub-namespace`.
+- Server secrets: `/docker/portfolio/.env`, mode 600, owned by the deploy user (`DEPLOY_USER`), made by a bootstrap script.
+- Jenkins uses the credential `ghcr-creds` (GitHub Container Registry). Superseded 2026-11-26: the Docker Hub ids above no longer apply.
 - Local work needs no secret (SQLite).
 - The app refuses to start in production when: `TRUST_PROXY` is unset (already true), `DATABASE_URL`
   is empty (`DSH_DB_FILE`, a SQLite file, also counts as a database: `server/db.mjs`; the server stack never
@@ -72,16 +72,17 @@ a DNS or TLS fault would otherwise fail the older image too.
 **Hardening added 2026-11-26, after review.**
 - Traefik rate limit on `/api/auth/*` and every POST: per client address and one shared bucket.
   UNVERIFIED against a live Traefik.
-- The Jenkins agent holds the Docker socket: only `main` is built there (job setup is the first lock, a guard in
-  the Jenkinsfile the second), and installs run no package scripts.
+- Two Jenkins agents: `portfolio-build` runs gates 1-8 on `main` with its own Docker daemon, never the production
+  socket; `portfolio-deploy` holds the socket and runs stages 9-11 only after an approval by the users named in
+  `DEPLOY_APPROVER`. Installs run no package scripts.
 
 ## Consequences and gaps
 
-- Jenkins cannot run until the repo has a remote. Until then the pipeline is written but inactive.
+- Jenkins is not active: the local repository has no remote and no Jenkins job exists.
 - Each deploy restarts one container: a few seconds of downtime. This misses the standard's
   "rolling update with no downtime" and is accepted because login throttle and content copy are per process.
 - Autoscaling and namespace quota lines of the standard do not apply to compose.
 - Set `TRUSTED_PROXY_IPS` to the proxy's own address or subnet on the shared network.
-- `includeSubDomains` in the HSTS header (`server/index.mjs`, `securityHeaders`) affects every subdomain
-  if the apex domain is chosen. Check that first or drop the flag.
+- The HSTS header (`server/index.mjs`, `securityHeaders`) is sent in production for this host only, with no
+  `includeSubDomains`, so it does not force HTTPS on other subdomains.
 - Pushing a public image, DNS and deploy all wait for the owner.

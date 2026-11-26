@@ -3,6 +3,9 @@
 #   sh post-deploy-check.sh [expected image]
 #   COMPOSE_PROJECT   default portfolio
 #   PUBLIC_CHECK=1    also ask https://$PORTFOLIO_HOST/api/ready (from .env; needs DNS and TLS)
+#                     and whether www.$PORTFOLIO_HOST redirects there (a warning only: no
+#                     older image would repair DNS or a certificate)
+#   PUBLIC_WAIT_SECONDS  how long the public address may take (a first certificate), default 60
 set -eu
 cd "$(dirname "$0")"
 PROJECT="${COMPOSE_PROJECT:-portfolio}"
@@ -32,12 +35,18 @@ expect 'published ports' "[$(look '{{range $port, $to := .HostConfig.PortBinding
 expect 'log rotation' "$(look '{{index .HostConfig.LogConfig.Config "max-size"}}')" '[1-9]*'
 expect 'sign-in rate limit' "$(look '{{index .Config.Labels "traefik.http.routers.portfolio-auth.middlewares"}}')" \
   'portfolio-auth-source,portfolio-auth-total'
+host="$(sed -n 's/^PORTFOLIO_HOST=//p' .env 2>/dev/null | tail -n 1)"
+expect 'www redirect' "$(look '{{index .Config.Labels "traefik.http.middlewares.portfolio-www.redirectregex.replacement"}}')" \
+  "https://$host/*"
 
 # The database: uid 70 (its entrypoint then never runs gosu), no published port, and only
 # an internal network that holds nothing but this project's containers.
 db="$(docker ps -q --filter "label=com.docker.compose.project=$PROJECT" \
   --filter label=com.docker.compose.service=postgres --filter label=com.docker.compose.oneoff=False)"
-if [ -n "$db" ]; then
+if grep -qsE '^COMPOSE_FILE=(.*:)?compose\.shared-db\.yaml(:|$)' .env; then
+  # The server and its network belong to someone else: only that none was started here.
+  expect 'own database container (shared server in use)' "[$db]" '\[\]'
+elif [ -n "$db" ]; then
   data="${PROJECT}_portfolio-data"
   of_db() { docker inspect -f "$1" "$db"; }
   expect 'database user' "$(of_db '{{.Config.User}}')" 70:70
@@ -59,12 +68,22 @@ fi
 docker exec -i "$id" node --input-type=module - <checks/probe.mjs || failed=1
 
 if [ "${PUBLIC_CHECK:-0}" = 1 ]; then
-  host="$(sed -n 's/^PORTFOLIO_HOST=//p' .env | tail -n 1)"
-  if wget -q -T 20 -O /dev/null "https://$host/api/ready"; then
-    echo "ok   public https://$host/api/ready"
+  waited=0
+  until wget -q -T 20 -O /dev/null "https://$host/api/ready"; do
+    if [ "$waited" -ge "${PUBLIC_WAIT_SECONDS:-60}" ]; then
+      echo "FAIL public https://$host/api/ready" >&2
+      failed=1
+      waited=
+      break
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+  [ -z "$waited" ] || echo "ok   public https://$host/api/ready"
+  if wget -S -T 20 -O /dev/null "https://www.$host/" 2>&1 | grep -qiF "location: https://$host/"; then
+    echo "ok   public www redirect: https://www.$host/"
   else
-    echo "FAIL public https://$host/api/ready" >&2
-    failed=1
+    echo "WARN public www redirect: https://www.$host/ does not redirect to https://$host/" >&2
   fi
 fi
 exit "$failed"

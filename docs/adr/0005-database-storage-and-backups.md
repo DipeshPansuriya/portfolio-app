@@ -1,6 +1,6 @@
 # ADR 0005: PostgreSQL storage and backups
 
-Date: 2026-11-26. Status: **PROVISIONAL.**
+Date: 2026-11-26. Status: **PROVISIONAL.** Decision 1A (owner, 2026-11-26): one volume; the dumps share it with the own database.
 
 Option B is built and tested locally. It stays provisional until a read-only check of the target server (an existing
 shared PostgreSQL means A; B also needs 1 GB `MemAvailable` and 5 GB free disk). Nothing is deployed. The owner
@@ -19,7 +19,7 @@ Files and commands: [`deploy/README.md`](../../deploy/README.md).
 | Option | Good | Bad |
 |---|---|---|
 | A. Use a PostgreSQL that already runs on the server and is meant to be shared **(first choice if it exists)** | No new volume, least RAM | None verified to exist; shared blast radius |
-| B. Own `postgres:17` container + volume `portfolio-pg-data` and backup volume, written exception **(recommended if A is not there)** | Isolated | Breaks "one volume"; about 256 MB more RAM |
+| B. Own `postgres:17` container + one volume `portfolio-data` (dumps in its `portfolio/backups` folder; decision 1A), written exception **(recommended if A is not there)** | Isolated | Breaks "one volume"; about 256 MB more RAM |
 | C. SQLite file on the shared volume | One container, least RAM; tested path | Breaks "no database files on the shared volume" |
 
 ## Recommendation
@@ -79,3 +79,27 @@ numbered migration files, with a database review.
 App 256 MB + database 256 MB + backup 64 MB is about 580 MB of limits; the monthly restore test adds up to
 320 MB while it runs. Deploy only if the server shows at least 1 GB `MemAvailable` and 5 GB free disk (read-only
 check).
+
+## Owner-approved exceptions to the container standard (2026-11-26)
+
+Source: owner answers recorded on 2026-11-26.
+
+| Exception | Scope |
+|---|---|
+| Own image | No common image exists; this app keeps one image of its own (ADR 0004). |
+| Database and dumps on the one volume | Only if the server has no shared PostgreSQL. A copy off the disk is required (not yet chosen or built). |
+| Single server | Autoscaling, namespace quota and rolling update are not applicable to single-server Compose; an update means short downtime. |
+
+No other point of the standard is excepted. The list of points still not met is in
+[`deploy/README.md`](../../deploy/README.md).
+
+## Changes after the Docker reviews (2026-11-26)
+
+These replace the matching lines under "Database setup" above.
+
+- `portfolio_owner`, a role that cannot sign in, owns the database. `portfolio_app` (not a superuser, at most 10
+  connections) creates and uses the tables and cannot drop the database. The role script refuses a foreign
+  database or role, a server outside PostgreSQL 15 to 17 and, on a shared server, open `PUBLIC` grants unless
+  the server's owner accepts them.
+- An existing shared volume can be used (`deploy/compose.shared-volume.yaml`, `DATA_VOLUME`); all files stay in
+  `portfolio/` and the volume root is not changed. Without one, `portfolio-data` stays the one volume.

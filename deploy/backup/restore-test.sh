@@ -7,11 +7,11 @@
 #                       dump): exit 0 = the dump restores and has users and content.
 #                       Add `--no-deps` to `compose run` when the database is down.
 set -eu
-BACKUP_DIR="${BACKUP_DIR:-/var/lib/postgresql/dumps}"
+BACKUP_DIR="${BACKUP_DIR:-/var/lib/postgresql/data/portfolio/backups}"
 file="${1:-$(find "$BACKUP_DIR" -maxdepth 1 -name 'portfolio-*.dump' -type f | sort | tail -n 1)}"
 [ -n "$file" ] && [ -f "$file" ] || { echo "[restore] no dump in $BACKUP_DIR" >&2; exit 1; }
 
-data=/var/lib/postgresql/data/scratch
+data=/scratch/pgdata # in memory (compose tmpfs), never on the volume
 initdb -D "$data" -U postgres --auth=trust --encoding=UTF8 --locale=C >/tmp/initdb.log
 # Unix socket only: nothing else can reach this server.
 pg_ctl -D "$data" -w -l /tmp/scratch.log \

@@ -8,6 +8,10 @@
 # Not covered on purpose: the PostgreSQL image. Its digest is in
 # deploy/compose.yaml, scripts/ci.sh and the accepted-findings list together
 # (deploy/check-pipeline.sh enforces that), so it is updated by hand.
+#
+# Every pull request opened from here is read and merged BY HAND: no auto-merge, no bot or
+# workflow that merges (the repository setting is off, scripts/github_settings.py). Merged
+# code runs on the build server.
 # ─────────────────────────────────────────────────────────────────────────────
 version: 2
 

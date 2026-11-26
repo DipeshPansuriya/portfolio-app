@@ -1,9 +1,10 @@
 # GitHub policy: branch protection, review and required checks
 
-**Date:** 2026-11-26  **Status:** Planned. The GitHub settings below are **to be applied at publish**. None of them
-is in force until `scripts/github_settings.py check` passes against the public repository.
+**Date:** 2026-11-26  **Status:** Applied to the public repository on 2026-11-26. The last settings check on the
+published copy: 44 passed, 1 failed (auto-merge, which is off on purpose; the script in the local repository now expects
+off, not yet in the public copy). Checks: `scripts/github_settings.py check`.
 
-**Related:** [Branch policy](BRANCH-POLICY.md), [Push policy](PUSH-POLICY.md),
+**Related:** [CI and PR checks](CI-AND-PR-CHECKS.md), [Branch policy](BRANCH-POLICY.md), [Push policy](PUSH-POLICY.md),
 [Hardening checklist](REPO-HARDENING-CHECKLIST.md), [SECURITY.md](../SECURITY.md)
 
 ## 1. Rule
@@ -45,8 +46,8 @@ The branch must also be up to date (`strict_required_status_checks_policy: true`
 | `Build and bundle budget` | `quality.yml` | build and size budgets |
 | `Automated review` | `pr-review.yml` | builds the review report |
 
-`Image build and scan` (`quality.yml`) runs but is **not required** yet: it has never run on GitHub. It is also
-built to fail after the review date of the database image acceptance list, until the owner reviews it.
+`Image build and scan` (`quality.yml`) ran green on GitHub's runner (2026-11-26) but is **not required** yet. It is also
+built to fail after the review date of the database image acceptance list (2026-12-27), until the owner reviews it.
 
 ## 3. Repository settings
 
@@ -56,7 +57,8 @@ built to fail after the review date of the database image acceptance list, until
 | Squash merge, merge commit | on |
 | Rebase merge | off |
 | Delete branch on merge | on |
-| Auto merge, update branch button | on |
+| Auto merge | off, on purpose: no bot or workflow merges a pull request |
+| Update branch button | on |
 | Issues, wiki, projects | on |
 | Discussions | off |
 | Labels for Dependabot | `dependencies`, `github-actions`, `javascript`, `docker` |
@@ -71,7 +73,8 @@ Description and topics are also set by the script.
 | `allowed_actions` | `all` | any action, but only pinned |
 | `default_workflow_permissions` | `read` | a workflow must ask for write |
 | `can_approve_pull_request_reviews` | `false` | the workflow token cannot approve |
-| Fork pull request approval | `first_time_contributors` | a first-time contributor's run waits for approval |
+| Fork pull request approval | `all_external_contributors` (set by the script) | every outside contributor's run waits for approval |
+| Required checks source | GitHub Actions app (id 15368) (set by the script) | a check from any other app cannot satisfy them |
 
 Already true in the workflow files today:
 
@@ -90,10 +93,10 @@ Each is pinned to a commit hash. No workflow uses `pull_request_target`. `securi
 
 | Feature | State |
 |---|---|
-| Secret scanning and push protection | to be applied at publish |
-| Dependabot alerts and security updates | to be applied at publish |
-| Private vulnerability reporting | to be applied at publish |
-| CodeQL default setup, weekly (`actions`, `javascript-typescript`, `python`) | to be applied after the first push |
+| Secret scanning and push protection | applied (settings check 2026-11-26: PASS) |
+| Dependabot alerts and security updates | applied (settings check: PASS) |
+| Private vulnerability reporting | applied (settings check: PASS) |
+| CodeQL default setup (`actions`, `javascript-typescript`, `python`) | applied; ran on `main` (2026-11-26). Alerts: triage open, see [CI and PR checks](CI-AND-PR-CHECKS.md#6-not-covered-and-not-done) |
 | Dependabot version updates (`.github/dependabot.yml`: Actions, npm, Docker; weekly) | file present; starts on GitHub |
 
 The database image is updated by hand: its digest appears in `deploy/compose.yaml`, `scripts/ci.sh` and the
@@ -148,7 +151,7 @@ Raising the count before a second reviewer exists would block every merge.
 
 | Limit | Meaning |
 |---|---|
-| Workflows never run on GitHub | UNVERIFIED until the first push; Linux runners and the image scan are untested |
+| Workflows ran only on the published copy | 9 runs green on 2026-11-26 (Security, Quality, Dependabot, PR Review, CodeQL); later changes are checked by their own runs |
 | Zero required approvals | checks are the only gate |
 | `Automated review` is required but advisory | it reports, it does not judge correctness |
 | Workflow permissions are set in the workflow files | review a change to them with the same care as code |

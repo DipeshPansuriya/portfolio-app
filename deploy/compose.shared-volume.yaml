@@ -1,0 +1,36 @@
+# An existing shared volume on the server: used instead of a volume of our own, never created
+# or removed by this stack, its root never changed. Added after compose.yaml, before
+# compose.shared-db.yaml when both apply, in the server's .env:
+#   COMPOSE_FILE=compose.yaml:compose.shared-volume.yaml[:compose.shared-db.yaml]
+#   DATA_VOLUME=<name of the existing volume>
+# Everything of this app stays in portfolio/ inside it. Once, by the volume's administrator:
+# the folder portfolio owned by 70:70 (or a root that user 70 may write to).
+# UNVERIFIED against a real server (both rehearsals can run it with a stand-in volume).
+services:
+  postgres:
+    # portfolio/ only: the database server cannot reach another app's folder.
+    volumes: !override
+      - type: volume
+        source: data
+        target: /var/lib/postgresql/data/portfolio
+        volume:
+          subpath: portfolio
+          nocopy: true
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      # Covers the image's VOLUME line, which would otherwise create an unnamed volume.
+      - /var/lib/postgresql/data:size=1m,uid=70,gid=70,mode=0700
+
+  # Sees the whole volume (it makes portfolio/); nocopy: an empty volume keeps its owner.
+  pg-folders:
+    volumes:
+      - type: volume
+        source: data
+        target: /var/lib/postgresql/data
+        volume:
+          nocopy: true
+
+volumes:
+  data: !override
+    external: true
+    name: ${DATA_VOLUME:?set DATA_VOLUME to the existing volume}

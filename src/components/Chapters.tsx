@@ -37,7 +37,7 @@ export function Chapters({ onDrive }: { onDrive: () => void }) {
                   className="h-full rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong"
                 >
                   <div className="flex items-baseline gap-2.5">
-                    <span className="font-mono text-[10px] text-accent">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-accent">{String(i + 1).padStart(2, '0')}</span>
                     <h3 className="font-display text-[14px] font-medium tracking-tight">{p.title}</h3>
                   </div>
                   <p className="mt-1.5 text-[12px] leading-relaxed text-faint">{p.body}</p>

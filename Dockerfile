@@ -44,21 +44,33 @@ COPY --from=web /dist-server ./dist-server
 # Source files may be owner-only on the build machine; the runtime user only reads.
 RUN chmod -R u=rwX,go=rX /app
 
-FROM base AS runtime
-# No package manager, C headers or package index cache in the final filesystem.
+# The base filesystem without what only a build needs: npm, npx, the C headers, the apk
+# program. /lib/apk/db stays: the vulnerability scan reads the package list from it.
+FROM base AS trimmed
 RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx \
-    /usr/local/include/node /var/cache/apk/*
+    /usr/local/include/node /sbin/apk /usr/lib/libapk.so* /var/cache/apk/*
+
+# Copied into an empty image, not built on top of the base image: what was removed above
+# is in no layer. The base image's settings are therefore declared again here.
+FROM scratch AS runtime
+# hadolint ignore=DL3067
+COPY --from=trimmed / /
 COPY --from=app /app /app
+ARG NODE_IMAGE
 ARG VERSION=0.0.0
 ARG REVISION=unknown
 ARG SOURCE=unpublished
 LABEL org.opencontainers.image.title="portfolio" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.source="${SOURCE}"
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=4319
+      org.opencontainers.image.source="${SOURCE}" \
+      org.opencontainers.image.base.name="${NODE_IMAGE}"
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    NODE_ENV=production HOST=0.0.0.0 PORT=4319
+WORKDIR /app
 USER 1000:1000
 EXPOSE 4319
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --start-interval=2s --retries=3 \
   CMD ["node", "-e", "fetch(`http://127.0.0.1:${process.env.PORT || 4319}/api/ready`).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server/index.mjs"]

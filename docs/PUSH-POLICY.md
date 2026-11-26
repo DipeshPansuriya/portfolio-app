@@ -1,9 +1,9 @@
 # Push policy: secrets and credentials
 
-**Date:** 2026-11-26  **Status:** Local hooks work in any clone that installs them. The CI backstop starts when the
-repository is on GitHub (workflows UNVERIFIED there).
+**Date:** 2026-11-26  **Status:** Local hooks work in any clone that installs them. The CI backstop runs on the
+published repository (workflow runs on 2026-11-26 were green).
 
-**Related:** [GitHub policy](GITHUB-POLICY.md), [SECURITY.md](../SECURITY.md)
+**Related:** [GitHub policy](GITHUB-POLICY.md), [CI and PR checks](CI-AND-PR-CHECKS.md), [SECURITY.md](../SECURITY.md)
 
 ## 1. Rule
 
