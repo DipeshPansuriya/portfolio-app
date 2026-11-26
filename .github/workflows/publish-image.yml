@@ -1,0 +1,107 @@
+name: Publish image
+
+# Builds the release image on a GitHub amd64 runner, checks it with the gates of
+# scripts/ci.sh and pushes it to the registry. Started by hand only, from main only:
+# no push, tag or pull request starts it. A server pulls the recorded digest.
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+# One publish at a time: the registry does not lock a tag by itself.
+concurrency:
+  group: publish-image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check the release image
+    runs-on: ubuntu-24.04          # x86_64, like the server
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      image: ${{ steps.save.outputs.image }}
+      image-id: ${{ steps.save.outputs.image-id }}
+      archive-sha256: ${{ steps.save.outputs.archive-sha256 }}
+    steps:
+      - name: Only main
+        run: |
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "start this on main, not $GITHUB_REF" >&2; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0          # gate 7 scans the git history too
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: "26"
+
+      - name: Pull the pinned images
+        run: |
+          for name in PG_IMAGE TRIVY_IMAGE GITLEAKS_IMAGE; do
+            docker pull "$(sed -n "s/^$name=//p" scripts/ci.sh)"
+          done
+          docker pull "$(sed -n 's/^ARG NODE_IMAGE=//p' Dockerfile)"
+
+      - name: Build, scan and run the image
+        env:
+          IMAGE_ID_FILE: ${{ runner.temp }}/release-image.id
+        run: sh scripts/ci.sh 1 5 6 7 8
+
+      - name: Save the checked image
+        id: save
+        run: |
+          image="$(sh scripts/ci.sh --image)"
+          id="$(cat "$RUNNER_TEMP/release-image.id")"
+          test "$(docker image inspect -f '{{.Id}}' "$image")" = "$id"
+          docker save -o release-image.tar "$image"
+          sum="$(sha256sum release-image.tar | cut -d ' ' -f 1)"
+          {
+            echo "image=$image"
+            echo "image-id=$id"
+            echo "archive-sha256=$sum"
+          } >>"$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-image
+          path: release-image.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  push:
+    name: Push to the registry
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: release-image
+
+      - name: Push the checked image under a new tag
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          IMAGE_ID: ${{ needs.build.outputs.image-id }}
+          ARCHIVE_SHA256: ${{ needs.build.outputs.archive-sha256 }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+          DIGEST_FILE: image-digest.txt
+        run: sh scripts/publish-image.sh release-image.tar
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: image-digest
+          path: image-digest.txt
+          if-no-files-found: error
+          retention-days: 90
