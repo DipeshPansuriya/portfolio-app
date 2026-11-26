@@ -1,0 +1,80 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+# pre-push — blocks a push that would publish credentials.
+#
+# Two scans:
+#   1. every blob of every commit about to leave the machine (range scan)
+#   2. the committed tree at HEAD (never the working tree), to catch anything
+#      already committed locally
+#
+# Installed by scripts/install_hooks.sh (run from .git/hooks).
+# Bypass for one push only:  git push --no-verify
+# ─────────────────────────────────────────────────────────────────────────────
+set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$ROOT" || exit 0
+
+# Fails closed: without the scanner nothing is pushed. A branch without one uses
+# the copy that install_hooks.sh saved next to the saved hooks.
+SCANNER="$ROOT/scripts/check_secrets.py"
+[ -f "$SCANNER" ] || SCANNER="$HERE/check_secrets.py"
+if [ ! -f "$SCANNER" ]; then
+    echo "pre-push: scripts/check_secrets.py missing; push blocked" >&2
+    exit 1
+fi
+
+PY="$(command -v python3 || true)"
+if [ -z "$PY" ]; then
+    echo "pre-push: python3 not found; push blocked" >&2
+    exit 1
+fi
+
+ZERO="0000000000000000000000000000000000000000"
+REMOTE="${1:-}"
+failed=0
+
+# stdin lines: <local ref> <local sha> <remote ref> <remote sha>
+while read -r _ local_sha remote_ref remote_sha; do
+    [ -z "${local_sha:-}" ] && continue
+    [ "$local_sha" = "$ZERO" ] && continue   # branch deletion
+
+    if [ "$remote_sha" = "$ZERO" ] \
+        || ! git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+        # New remote branch, or a remote tip this clone has never fetched: scan
+        # every commit the remote is not known to have.
+        range="$local_sha"
+        label="new commits for $remote_ref"
+    else
+        range="$remote_sha..$local_sha"
+        label="$remote_ref"
+    fi
+
+    echo "pre-push: scanning $label ($range)…"
+    if ! "$PY" -B "$SCANNER" --range "$range" ${REMOTE:+--remote "$REMOTE"} --quiet; then
+        failed=1
+    fi
+done
+
+echo "pre-push: scanning HEAD tree…"
+if ! "$PY" -B "$SCANNER" --tree HEAD --quiet; then
+    failed=1
+fi
+
+if [ "$failed" -ne 0 ]; then
+    cat >&2 <<'MSG'
+
+Push blocked: a credential would be published.
+
+  1. Remove the secret and amend or rebase the offending commit.
+  2. If it was already committed, rewrite history before pushing:
+       git rebase -i <base>      # or: git filter-repo --path <file> --invert-paths
+  3. Rotate the credential — assume it is compromised once it exists in a commit.
+
+To bypass once (not recommended): git push --no-verify
+MSG
+    exit 1
+fi
+
+exit 0

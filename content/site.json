@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "description": "Dipesh Pansuriya — software engineer building .NET, Java and React systems: integration platforms, logistics SaaS, and local-first AI tooling.",
+    "shareDescription": ".NET · Java · React · distributed systems · applied AI. A technology-first portfolio."
+  },
+  "profile": {
+    "name": "Dipesh Pansuriya",
+    "initials": "DP",
+    "role": "Software Engineer",
+    "tagline": "I build systems that move data — reliably, at volume, without drama.",
+    "location": "Mumbai, India",
+    "timezone": "Asia/Kolkata",
+    "email": "hello@example.com",
+    "availability": "Open to interesting systems work",
+    "socials": [
+      {
+        "label": "Email",
+        "handle": "hello@example.com",
+        "href": "mailto:hello@example.com"
+      },
+      {
+        "label": "LinkedIn",
+        "handle": "in/dipeshpansuriya",
+        "href": "https://www.linkedin.com/in/dipeshpansuriya"
+      }
+    ]
+  },
+  "hero": {
+    "eyebrow": "An interactive portfolio",
+    "headline": "I build systems that move data.",
+    "subline": "Software engineer working on the unglamorous parts — correctness, throughput and the quiet machinery that keeps a product boring in production.",
+    "primaryCta": "Enter the drive",
+    "secondaryCta": "Read it instead"
+  },
+  "stats": [
+    {
+      "value": "13",
+      "suffix": "+",
+      "label": "Years writing software"
+    },
+    {
+      "value": "6",
+      "suffix": "",
+      "label": "Systems in production"
+    },
+    {
+      "value": "1.1k",
+      "suffix": "+",
+      "label": "Tests written"
+    },
+    {
+      "value": "0",
+      "suffix": "",
+      "label": "Demos shipped instead"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "start",
+      "label": "Start",
+      "kicker": "Chapter 01",
+      "title": "Hello — I'm Dipesh.",
+      "body": "A software engineer who likes the parts of the job nobody puts on a slide: schema design, retry semantics, the test that catches the regression three months later.",
+      "bullets": [
+        "Thirteen years across product teams and platform work",
+        "Happiest when a system gets quieter as it grows",
+        "Based in Mumbai, working with teams across time zones"
+      ],
+      "accent": "#4dd6f7",
+      "hint": "Start line"
+    },
+    {
+      "id": "craft",
+      "label": "Craft",
+      "kicker": "Chapter 02",
+      "title": "How I build.",
+      "body": "Boundaries first, frameworks second. The rules of a system should be readable without a database, a queue or a container in the room — everything else is plumbing you can replace.",
+      "bullets": [
+        "Domain logic stays pure and independently testable",
+        "Every failure leaves a trace, a metric and a replay path",
+        "Upgrade paths are designed, not discovered"
+      ],
+      "accent": "#8b7cf6",
+      "hint": "The workshop"
+    },
+    {
+      "id": "principles",
+      "label": "Principles",
+      "kicker": "Chapter 03",
+      "title": "What I optimise for.",
+      "body": "Three rules that have survived every rewrite, every stack change and every deadline.",
+      "bullets": [
+        "Boring in production beats clever in review",
+        "A system you can explain in one sentence is a system you can debug at 3am",
+        "Motion and interface should carry meaning, never decoration"
+      ],
+      "accent": "#f5b463",
+      "hint": "The rules"
+    },
+    {
+      "id": "now",
+      "label": "Now",
+      "kicker": "Chapter 04",
+      "title": "What I'm exploring.",
+      "body": "Interface craft, developer experience, and the local-first tools that make a single machine feel like a small, well-run platform.",
+      "bullets": [
+        "Interaction design for dense, technical products",
+        "Tooling that shortens the distance between idea and feedback",
+        "Anything that makes correctness cheaper than debugging"
+      ],
+      "accent": "#37d399",
+      "hint": "The frontier"
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "kicker": "Chapter 05",
+      "title": "Say hello.",
+      "body": "Open to conversations about platform work, integration architecture and interface craft. Email is the fastest route — I read everything.",
+      "bullets": [
+        "Best reached by email",
+        "Happy to talk architecture without a pitch deck",
+        "Mumbai, India — remote-friendly"
+      ],
+      "accent": "#60a5fa",
+      "hint": "The exit"
+    }
+  ],
+  "principles": [
+    {
+      "title": "Boundaries before frameworks",
+      "body": "Domain logic stays pure. Frameworks live at the edge, so the rules stay testable and the upgrade path stays cheap."
+    },
+    {
+      "title": "Observability is a feature",
+      "body": "If a message can fail, it needs a trace, a metric and a replay path. Silent failure is the only unacceptable outcome."
+    },
+    {
+      "title": "Motion with intent",
+      "body": "Animation should explain hierarchy and state. If it does not carry meaning, it is noise — and it costs frames."
+    }
+  ],
+  "contact": {
+    "heading": "Have a system that needs to hold up?",
+    "body": "I am open to conversations about platform work, integration architecture and frontend craft.",
+    "primaryLabel": "Start a conversation"
+  },
+  "stack": [
+    {
+      "name": "React",
+      "icon": "react",
+      "level": 95
+    },
+    {
+      "name": "TypeScript",
+      "icon": "typescript",
+      "level": 93
+    },
+    {
+      "name": ".NET",
+      "icon": "dotnet",
+      "level": 95
+    },
+    {
+      "name": "Java",
+      "icon": "openjdk",
+      "level": 82
+    },
+    {
+      "name": "Spring Boot",
+      "icon": "springboot",
+      "level": 80
+    },
+    {
+      "name": "Node.js",
+      "icon": "nodedotjs",
+      "level": 84
+    },
+    {
+      "name": "FastAPI",
+      "icon": "fastapi",
+      "level": 80
+    },
+    {
+      "name": "Kafka",
+      "icon": "apachekafka",
+      "level": 76
+    },
+    {
+      "name": "RabbitMQ",
+      "icon": "rabbitmq",
+      "level": 78
+    },
+    {
+      "name": "PostgreSQL",
+      "icon": "postgresql",
+      "level": 90
+    },
+    {
+      "name": "MongoDB",
+      "icon": "mongodb",
+      "level": 85
+    },
+    {
+      "name": "Redis",
+      "icon": "redis",
+      "level": 80
+    },
+    {
+      "name": "SQLite",
+      "icon": "sqlite",
+      "level": 82
+    },
+    {
+      "name": "Elasticsearch",
+      "icon": "elasticsearch",
+      "level": 70
+    },
+    {
+      "name": "Docker",
+      "icon": "docker",
+      "level": 88
+    },
+    {
+      "name": "Kubernetes",
+      "icon": "kubernetes",
+      "level": 72
+    },
+    {
+      "name": "GitHub Actions",
+      "icon": "githubactions",
+      "level": 84
+    },
+    {
+      "name": "Nginx",
+      "icon": "nginx",
+      "level": 74
+    },
+    {
+      "name": "Grafana",
+      "icon": "grafana",
+      "level": 72
+    },
+    {
+      "name": "Prometheus",
+      "icon": "prometheus",
+      "level": 70
+    },
+    {
+      "name": "Python",
+      "icon": "python",
+      "level": 88
+    },
+    {
+      "name": "PyTorch",
+      "icon": "pytorch",
+      "level": 68
+    },
+    {
+      "name": "Hugging Face",
+      "icon": "huggingface",
+      "level": 76
+    },
+    {
+      "name": "Ollama",
+      "icon": "ollama",
+      "level": 80
+    },
+    {
+      "name": "Claude",
+      "icon": "claude",
+      "level": 84
+    },
+    {
+      "name": "Git",
+      "icon": "git",
+      "level": 92
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "level": 92
+    },
+    {
+      "name": "Figma",
+      "icon": "figma",
+      "level": 74
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+# Local rehearsal only (deploy/rehearse.sh). Never copied to the server.
+# - No Traefik here: the web network is private, with no way out.
+# - This Mac shares only one folder with Docker, so the two script folders reach the
+#   containers as read-only volumes that rehearse.sh fills with `docker cp`.
+services:
+  postgres:
+    volumes: !override
+      - portfolio-pg-data:/var/lib/postgresql/data
+      - init-files:/docker-entrypoint-initdb.d:ro
+  pg-backup:
+    volumes: !override
+      - portfolio-pg-backups:/var/lib/postgresql
+      - backup-files:/scripts:ro
+  pg-restore-test:
+    volumes: !override
+      - portfolio-pg-backups:/var/lib/postgresql:ro
+      - backup-files:/scripts:ro
+
+networks:
+  web: !override
+    internal: true
+
+volumes:
+  init-files:
+    external: true
+    name: ${COMPOSE_PROJECT_NAME}-init-files
+  backup-files:
+    external: true
+    name: ${COMPOSE_PROJECT_NAME}-backup-files

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#05060a" />
+    <!-- data-content: the server fills these from the live content (server/head.mjs) -->
+    <title data-content="title">Dipesh Pansuriya — Software Engineer</title>
+    <meta
+      data-content="description"
+      name="description"
+      content="Dipesh Pansuriya — software engineer building .NET, Java and React systems: integration platforms, logistics SaaS, and local-first AI tooling."
+    />
+    <meta data-content="og:title" property="og:title" content="Dipesh Pansuriya — Software Engineer" />
+    <meta
+      data-content="og:description"
+      property="og:description"
+      content=".NET · Java · React · distributed systems · applied AI. A technology-first portfolio."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <script data-content="person" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "Dipesh Pansuriya",
+        "jobTitle": "Software Engineer",
+        "sameAs": ["https://www.linkedin.com/in/dipeshpansuriya"]
+      }
+    </script>
+    <script src="/theme-init.js"></script>
+    <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <style>
+        [data-lookalike] {
+          display: none !important;
+        }
+      </style>
+      <p data-content="noscript" style="padding: 2rem; font-family: sans-serif">
+        Dipesh Pansuriya, Software Engineer. This portfolio needs JavaScript;
+        <a href="https://www.linkedin.com/in/dipeshpansuriya">the LinkedIn profile</a> works without it.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

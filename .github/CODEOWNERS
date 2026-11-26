@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CODEOWNERS — who must review which paths
+#
+# The ruleset requires a pull request but zero approvals, because this repository
+# has a single maintainer and self-approval is not possible on GitHub. Ownership
+# is still declared so a future collaborator inherits the right review scope, and
+# so `require_code_owner_review` can be switched on without editing this file.
+#
+# Syntax: <pattern> <owner>...
+# Docs:   https://docs.github.com/repos/github/creating-cloning-and-archiving-repositories/about-code-owners
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Default owner for everything.
+*                                   @DipeshPansuriya
+
+# Security-sensitive surfaces: hooks, scanners, CI policy, build and deploy.
+/.githooks/                         @DipeshPansuriya
+/.github/                           @DipeshPansuriya
+/scripts/check_secrets.py           @DipeshPansuriya
+/scripts/security_audit.sh          @DipeshPansuriya
+/scripts/install_hooks.sh           @DipeshPansuriya
+/scripts/github_settings.py         @DipeshPansuriya
+/scripts/ci.sh                      @DipeshPansuriya
+/deploy/                            @DipeshPansuriya
+/Jenkinsfile                        @DipeshPansuriya
+/Dockerfile                         @DipeshPansuriya
+/.dockerignore                      @DipeshPansuriya
+/package.json                       @DipeshPansuriya
+/package-lock.json                  @DipeshPansuriya
+
+# Runtime and interface.
+/server/                            @DipeshPansuriya
+/shared/                            @DipeshPansuriya
+/src/                               @DipeshPansuriya
+
+# Policy documents.
+/SECURITY.md                        @DipeshPansuriya
+/docs/                              @DipeshPansuriya

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "portfolio: target production architecture",
+    "output": "docs/diagrams/runtime-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "visitor", "type": "external", "label": "Visitor", "sublabel": "browser", "pos": [40, 170], "size": [130, 62] },
+    { "id": "owner", "type": "external", "label": "Owner", "sublabel": "/admin", "pos": [40, 310], "size": [130, 62] },
+    { "id": "traefik", "type": "security", "label": "Traefik", "sublabel": "TLS + host rule", "pos": [270, 240], "size": [136, 62] },
+    { "id": "app", "type": "backend", "label": "portfolio app", "sublabel": "web, hero, API", "pos": [520, 240], "size": [160, 62] },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL 17", "sublabel": "live content", "pos": [820, 240], "size": [146, 62] },
+    { "id": "backup", "type": "backend", "label": "pg-backup", "sublabel": "nightly dump", "pos": [820, 420], "size": [146, 62] },
+    { "id": "dumps", "type": "database", "label": "Backup volume", "sublabel": "kept, not pruned", "pos": [1080, 420], "size": [146, 62] },
+    { "id": "jenkins", "type": "cloud", "label": "Jenkins", "sublabel": "ci.sh gates", "pos": [520, 420], "size": [160, 62] },
+    { "id": "registry", "type": "external", "label": "Docker Hub", "sublabel": "one public image", "pos": [40, 460], "size": [146, 62] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Hostinger VPS (Docker)", "wraps": ["traefik", "app", "postgres", "backup", "dumps", "jenkins"], "pad": 28 },
+    { "kind": "security-group", "label": "internal data network", "wraps": ["postgres", "backup"], "pad": 14 }
+  ],
+  "connections": [
+    { "from": "visitor", "to": "traefik", "label": "HTTPS", "variant": "emphasis" },
+    { "from": "owner", "to": "traefik", "label": "HTTPS", "variant": "security" },
+    { "from": "traefik", "to": "app", "label": ":4319", "variant": "emphasis" },
+    { "from": "app", "to": "postgres", "label": "SQL", "variant": "emphasis" },
+    { "from": "backup", "to": "postgres", "label": "pg_dump" },
+    { "from": "backup", "to": "dumps", "label": "write" },
+    { "from": "jenkins", "to": "app", "label": "deploy tag", "variant": "dashed" },
+    { "from": "jenkins", "to": "registry", "label": "push", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom", "via": [[600, 570], [113, 570]] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "App container", "items": ["Non-root, read-only filesystem, no volume", "One replica, 256 MB limit"] },
+    { "dot": "emerald", "title": "Data", "items": ["Newest revision row is the live content", "Storage layout is provisional (ADR 0005)"] },
+    { "dot": "rose", "title": "Not active yet", "items": ["Built and tested locally, not deployed", "Pipeline is not active"] }
+  ]
+}

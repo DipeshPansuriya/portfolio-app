@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagram</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&family=Noto+Sans+TC:wght@400;500;600&family=Noto+Serif+TC:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;   /* white-smoke */
+      --color-ink:     #2d3142;   /* jet-black */
+      --color-muted:   #4f5d75;   /* blue-slate */
+      --color-accent:  #bf4520;   /* burnt-tangerine */
+      --font-sans:     'Geist', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif', 'Noto Serif KR', serif;
+      --font-mono:     'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+    /* The SVG holds its readable width (min-width == the viewBox width, so the
+       type ramp is never silently scaled down). This wrapper lets a narrow
+       screen scroll the diagram instead of the whole page. */
+    .diagram-container { width: 100%; overflow-x: auto; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 960px; display: block; }
+    /* Paper has no scrollbar, so the local scroller would clip instead of
+       scroll. Let the diagram scale down to the sheet: smaller but whole
+       beats sharp but cut off. Must come after the svg rule above - a media
+       query adds no specificity, so a later plain rule would win. */
+    @media print {
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Deployment · design only</p>
+    <h1>portfolio: target deployment</h1>
+
+    <!-- Replace deployment with a unique slug for this diagram before export. -->
+    <div class="diagram-container">
+      <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="deployment-title deployment-desc">
+        <title id="deployment-title">portfolio: target deployment</title>
+        <desc id="deployment-desc">One public image built by Jenkins runs behind Traefik on the Hostinger VPS, with PostgreSQL and nightly dumps on an internal network.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#bf4520"/></marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+
+          <!-- OPTIONAL: dot-pattern background. Uncomment the <pattern> and the second <rect> below if you want the dotted paper look. -->
+          <!--
+          <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="0.9" fill="rgba(45,49,66,0.10)"/>
+          </pattern>
+          -->
+        </defs>
+
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+        <!-- <rect width="100%" height="100%" fill="url(#dots)" opacity="0.55"/> -->
+
+        <rect x="24" y="96" width="192" height="392" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-dasharray="4,4"/>
+        <rect x="36" y="90" width="68" height="12" fill="#f5f5f5"/>
+        <text x="40" y="99" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="start" letter-spacing="0.12em">INTERNET</text>
+        <rect x="248" y="56" width="680" height="432" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-dasharray="4,4"/>
+        <rect x="260" y="50" width="160" height="12" fill="#f5f5f5"/>
+        <text x="264" y="59" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="start" letter-spacing="0.12em">HOSTINGER VPS / DOCKER</text>
+        <rect x="696" y="88" width="216" height="360" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-dasharray="4,4"/>
+        <rect x="708" y="82" width="180" height="12" fill="#f5f5f5"/>
+        <text x="712" y="91" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="start" letter-spacing="0.12em">PORTFOLIO-DATA (INTERNAL)</text>
+        <path d="M 56 168 L 280 168" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <path d="M 440 168 L 496 168" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <path d="M 656 168 L 720 168" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <path d="M 804 320 L 804 216" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <path d="M 576 320 L 576 216" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)" stroke-dasharray="5,4"/>
+        <path d="M 496 368 L 200 368" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)" stroke-dasharray="5,4"/>
+        <path d="M 120 416 L 120 456 Q 120 464 128 464 L 568 464 Q 576 464 576 456 L 576 416" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)" stroke-dasharray="5,4"/>
+        <rect x="123.5" y="148" width="49" height="11" fill="#f5f5f5"/>
+        <text x="148" y="156" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="middle" letter-spacing="0">HTTPS:443</text>
+        <rect x="443.5" y="148" width="49" height="11" fill="#f5f5f5"/>
+        <text x="468" y="156" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="middle" letter-spacing="0">HTTP:4319</text>
+        <rect x="660.0" y="148" width="44" height="11" fill="#f5f5f5"/>
+        <text x="682" y="156" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="middle" letter-spacing="0">TCP:5432</text>
+        <rect x="812" y="264" width="39" height="11" fill="#f5f5f5"/>
+        <text x="814" y="272" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0">PG_DUMP</text>
+        <rect x="584" y="264" width="54" height="11" fill="#f5f5f5"/>
+        <text x="586" y="272" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0">DEPLOY TAG</text>
+        <rect x="323.0" y="348" width="54" height="11" fill="#f5f5f5"/>
+        <text x="350" y="356" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="middle" letter-spacing="0">PUSH IMAGE</text>
+        <rect x="323.0" y="444" width="54" height="11" fill="#f5f5f5"/>
+        <text x="350" y="452" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="middle" letter-spacing="0">PULL IMAGE</text>
+        <text x="56" y="188" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0">BROWSER</text>
+        <rect x="280" y="120" width="160" height="96" rx="6" fill="#f5f5f5"/>
+        <rect x="280" y="120" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142"/>
+        <rect x="288" y="128" width="33" height="12" rx="2" fill="none" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="292" y="137" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0.08em">PROXY</text>
+        <text x="360.0" y="164" font-family="'Geist', system-ui, sans-serif" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle" letter-spacing="0">Traefik</text>
+        <rect x="288" y="180" width="144" height="24" rx="4" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="296" y="195" font-family="'Geist', system-ui, sans-serif" font-size="10" font-weight="400" fill="#2d3142" text-anchor="start" letter-spacing="0">existing</text>
+        <text x="424" y="195" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="end" letter-spacing="0">on VPS</text>
+        <rect x="496" y="120" width="160" height="96" rx="6" fill="#f5f5f5"/>
+        <rect x="496" y="120" width="160" height="96" rx="6" fill="rgba(191,69,32,0.08)" stroke="#bf4520"/>
+        <rect x="504" y="128" width="53" height="12" rx="2" fill="none" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="508" y="137" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0.08em">CONTAINER</text>
+        <rect x="628" y="128" width="20" height="12" rx="2" fill="#f5f5f5" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="638" y="137" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="middle" letter-spacing="0">x1</text>
+        <text x="576.0" y="164" font-family="'Geist', system-ui, sans-serif" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle" letter-spacing="0">App, 256 MB</text>
+        <rect x="504" y="180" width="144" height="24" rx="4" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="512" y="195" font-family="'Geist', system-ui, sans-serif" font-size="10" font-weight="400" fill="#2d3142" text-anchor="start" letter-spacing="0">portfolio</text>
+        <text x="640" y="195" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="end" letter-spacing="0">git-sha</text>
+        <rect x="720" y="120" width="168" height="96" rx="6" fill="#f5f5f5"/>
+        <rect x="720" y="120" width="168" height="96" rx="6" fill="rgba(191,69,32,0.08)" stroke="#bf4520"/>
+        <rect x="728" y="128" width="53" height="12" rx="2" fill="none" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="732" y="137" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0.08em">CONTAINER</text>
+        <rect x="860" y="128" width="20" height="12" rx="2" fill="#f5f5f5" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="870" y="137" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="middle" letter-spacing="0">x1</text>
+        <text x="804.0" y="164" font-family="'Geist', system-ui, sans-serif" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle" letter-spacing="0">Database</text>
+        <rect x="728" y="180" width="152" height="24" rx="4" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="736" y="195" font-family="'Geist', system-ui, sans-serif" font-size="10" font-weight="400" fill="#2d3142" text-anchor="start" letter-spacing="0">postgres</text>
+        <text x="872" y="195" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="end" letter-spacing="0">17.11</text>
+        <rect x="720" y="320" width="168" height="96" rx="6" fill="#f5f5f5"/>
+        <rect x="720" y="320" width="168" height="96" rx="6" fill="#ffffff" stroke="#2d3142"/>
+        <rect x="728" y="328" width="53" height="12" rx="2" fill="none" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="732" y="337" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0.08em">CONTAINER</text>
+        <text x="804.0" y="364" font-family="'Geist', system-ui, sans-serif" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle" letter-spacing="0">pg-backup</text>
+        <rect x="728" y="380" width="152" height="24" rx="4" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="736" y="395" font-family="'Geist', system-ui, sans-serif" font-size="10" font-weight="400" fill="#2d3142" text-anchor="start" letter-spacing="0">postgres</text>
+        <text x="872" y="395" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="end" letter-spacing="0">17.11</text>
+        <rect x="496" y="320" width="160" height="96" rx="6" fill="#f5f5f5"/>
+        <rect x="496" y="320" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142"/>
+        <rect x="504" y="328" width="18" height="12" rx="2" fill="none" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="508" y="337" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0.08em">CI</text>
+        <text x="576.0" y="364" font-family="'Geist', system-ui, sans-serif" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle" letter-spacing="0">Jenkins</text>
+        <rect x="504" y="380" width="144" height="24" rx="4" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="512" y="395" font-family="'Geist', system-ui, sans-serif" font-size="10" font-weight="400" fill="#2d3142" text-anchor="start" letter-spacing="0">scripts/ci.sh</text>
+        <text x="640" y="395" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="end" letter-spacing="0">in repo</text>
+        <rect x="40" y="320" width="160" height="96" rx="6" fill="#f5f5f5"/>
+        <rect x="40" y="320" width="160" height="96" rx="6" fill="#ffffff" stroke="#2d3142"/>
+        <rect x="48" y="328" width="48" height="12" rx="2" fill="none" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="52" y="337" font-family="'Geist Mono', ui-monospace, monospace" font-size="7" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0.08em">REGISTRY</text>
+        <text x="120.0" y="364" font-family="'Geist', system-ui, sans-serif" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle" letter-spacing="0">Docker Hub</text>
+        <rect x="48" y="380" width="144" height="24" rx="4" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="0.8"/>
+        <text x="56" y="395" font-family="'Geist', system-ui, sans-serif" font-size="10" font-weight="400" fill="#2d3142" text-anchor="start" letter-spacing="0">portfolio</text>
+        <text x="184" y="395" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="end" letter-spacing="0">git-sha</text>
+        <line x1="24" y1="520" x2="928" y2="520" stroke="rgba(45,49,66,0.12)"/>
+        <text x="24" y="540" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#5a6580" text-anchor="start" letter-spacing="0.14em">LEGEND</text>
+        <line x1="24" y1="560" x2="56" y2="560" stroke="#2e5aa8" stroke-width="1.2"/>
+        <text x="64" y="563" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0">CROSSES A ZONE</text>
+        <line x1="180" y1="560" x2="212" y2="560" stroke="#4f5d75" stroke-width="1.2"/>
+        <text x="220" y="563" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0">INSIDE A ZONE</text>
+        <line x1="336" y1="560" x2="368" y2="560" stroke="#2e5aa8" stroke-width="1.2" stroke-dasharray="5,4"/>
+        <text x="376" y="563" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0">DELIVERY (NOT ACTIVE YET)</text>
+        <rect x="552" y="552" width="16" height="16" rx="4" fill="rgba(191,69,32,0.08)" stroke="#bf4520"/>
+        <text x="576" y="563" font-family="'Geist Mono', ui-monospace, monospace" font-size="8" font-weight="400" fill="#4f5d75" text-anchor="start" letter-spacing="0">HOLDS THE LIVE SERVICE AND DATA</text>
+
+      </svg>
+    </div>
+  </div>
+</body>
+</html>

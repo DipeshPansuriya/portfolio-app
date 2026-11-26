@@ -1,0 +1,67 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+# pre-commit — blocks staged credentials before a commit exists.
+#
+# Installed by scripts/install_hooks.sh (run from .git/hooks).
+# Bypass for one commit only:  git commit --no-verify
+# ─────────────────────────────────────────────────────────────────────────────
+set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$ROOT" || exit 0
+
+# Fails closed: without the scanner nothing is committed. A branch without one uses
+# the copy that install_hooks.sh saved next to the saved hooks.
+SCANNER="$ROOT/scripts/check_secrets.py"
+[ -f "$SCANNER" ] || SCANNER="$HERE/check_secrets.py"
+if [ ! -f "$SCANNER" ]; then
+    echo "pre-commit: scripts/check_secrets.py missing; commit blocked" >&2
+    exit 1
+fi
+
+PY="$(command -v python3 || true)"
+if [ -z "$PY" ]; then
+    echo "pre-commit: python3 not found; commit blocked" >&2
+    exit 1
+fi
+
+echo "pre-commit: scanning staged content for credentials…"
+if ! "$PY" -B "$SCANNER" --staged; then
+    cat >&2 <<'MSG'
+
+Commit blocked: staged content contains a credential or a file that must not be committed.
+
+  1. Remove the secret from the file (or unstage the file).
+  2. If it is a deliberate non-secret, append `secret-scan: allow` to that line.
+  3. Re-stage and commit again.
+
+To bypass once (not recommended): git commit --no-verify
+MSG
+    exit 1
+fi
+
+# Syntax gates on the staged content (not the working tree), so a broken file never
+# reaches a commit and unfinished, unstaged work never blocks one.
+failed=0
+while IFS= read -r -d '' file; do
+    case "$file" in
+        *.mjs)
+            command -v node >/dev/null 2>&1 || continue
+            git show ":$file" | node --input-type=module --check >/dev/null 2>&1 || {
+                echo "pre-commit: $file has a syntax error" >&2
+                failed=1
+            }
+            ;;
+        *.sh | .githooks/*)
+            # The shebang picks the shell: bash syntax is an error to a plain sh.
+            case "$(git show ":$file" | head -n 1)" in
+                *bash*) shell='bash' ;;
+                *) shell='sh' ;;
+            esac
+            git show ":$file" | "$shell" -n || { echo "pre-commit: $file does not parse" >&2; failed=1; }
+            ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACMRT -z)
+
+exit "$failed"

@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dependabot — automated dependency and action updates
+#
+# Alerts and security updates are switched on at the repository level
+# (scripts/github_settings.py); this file adds scheduled version updates so a
+# stale pin is visible as a pull request instead of drifting silently.
+#
+# Not covered on purpose: the PostgreSQL image. Its digest is in
+# deploy/compose.yaml, scripts/ci.sh and the accepted-findings list together
+# (deploy/check-pipeline.sh enforces that), so it is updated by hand.
+# ─────────────────────────────────────────────────────────────────────────────
+version: 2
+
+updates:
+  # GitHub Actions pinned to commit SHAs. Dependabot rewrites the SHA and keeps
+  # the trailing "# vX" comment in step.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "javascript"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # The Node base image in the Dockerfile.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
