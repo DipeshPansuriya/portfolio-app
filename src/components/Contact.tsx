@@ -33,7 +33,7 @@ export function Contact() {
           />
           <div className="absolute inset-0 grid-lines opacity-[0.2]" aria-hidden="true" />
 
-          <div className="relative grid gap-8 p-6 sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center">
+          <div className="relative grid grid-cols-1 gap-8 p-6 sm:p-10 lg:grid-cols-[1.25fr_1fr] lg:items-center">
             <div>
               <motion.p
                 initial={reduced ? false : { opacity: 0, y: 12 }}
@@ -55,9 +55,11 @@ export function Contact() {
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <a
                   href={`mailto:${profile.email}`}
-                  className="group font-display text-[clamp(1.1rem,2.4vw,1.6rem)] font-semibold tracking-[-0.03em] text-ink underline-offset-[6px] transition-colors hover:text-accent hover:underline"
+                  className="group min-w-0 font-display text-[clamp(1.1rem,2.4vw,1.6rem)] font-semibold tracking-[-0.03em] text-ink underline-offset-[6px] transition-colors hover:text-accent hover:underline"
                 >
-                  {profile.email}
+                  {/* A narrow card breaks the address before the domain first. */}
+                  {profile.email.split('@')[0]}
+                  <wbr />@{profile.email.split('@')[1]}
                 </a>
                 <button
                   type="button"

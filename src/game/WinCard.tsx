@@ -66,7 +66,7 @@ export function WinCard({
             Lap complete — all {chapters.length} gates passed.
           </h2>
 
-          <div className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-line bg-line">
+          <div className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-line bg-line wrap-normal">
             <div className="bg-bg/80 px-3 py-3">
               <span className="mono-label">Time</span>
               <p className="mt-1 font-display text-lg font-semibold tabular-nums">
@@ -112,13 +112,15 @@ export function WinCard({
                 onClick={() => onJump(c.id)}
                 className="group flex items-center gap-2.5 rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-line-strong"
               >
-                <span className="size-1.5 rounded-full" style={{ background: c.accent }} />
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+                <span className="size-1.5 shrink-0 rounded-full" style={{ background: c.accent }} />
+                <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <span className="text-[12px] text-ink">{c.label}</span>
-                <span className="ml-auto text-[11px] text-faint transition-colors group-hover:text-muted">
-                  {c.title}
+                <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5">
+                  <span className="text-[12px] text-ink">{c.label}</span>
+                  <span className="flex-1 basis-20 text-right text-[11px] text-faint transition-colors group-hover:text-muted">
+                    {c.title}
+                  </span>
                 </span>
                 <ArrowUpRight className="size-3.5 shrink-0 text-faint transition-colors group-hover:text-accent" />
               </button>

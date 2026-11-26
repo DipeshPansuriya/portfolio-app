@@ -2,7 +2,9 @@
 # Local proof of the stack (T8) and of deploy and rollback (T9), with throwaway secrets.
 #   sh deploy/rehearse.sh <image A> <image B>      both already built (same name, two tags)
 #   KEEP=1 leaves the stack running.
-# It creates its own compose project, volumes and two broken test images, and removes only those.
+#   SHARED_VOLUME=1 the same run in a stand-in existing volume (compose.shared-volume.yaml).
+# It creates its own compose project, its ONE volume and two broken test images, and removes
+# only those. The shared-database path: rehearse-shared.sh.
 set -eu
 cd "$(dirname "$0")"
 [ $# -eq 2 ] || { echo 'usage: rehearse.sh <image A> <image B>' >&2; exit 2; }
@@ -13,6 +15,13 @@ PG_IMAGE="$(sed -n 's/^ *image: \(postgres:[^ ]*\)$/\1/p' compose.yaml)"
 PROJECT="portfolio-rehearsal-$$"
 BROKEN="${A%:*}:rehearsal-broken-$$"
 CRASH="${A%:*}:rehearsal-crash-$$"
+VOLUME="$PROJECT-data"
+DUMPS=/var/lib/postgresql/data/portfolio/backups
+FILES=compose.yaml:compose.local.yaml
+if [ "${SHARED_VOLUME:-0}" = 1 ]; then
+  VOLUME="$PROJECT-vps"
+  FILES=compose.yaml:compose.shared-volume.yaml:compose.local.yaml
+fi
 work="$(mktemp -d "${TMPDIR:-/tmp}/portfolio-rehearsal.XXXXXX")"
 export COMPOSE_PROJECT="$PROJECT" COMPOSE_EXTRA=compose.local.yaml
 
@@ -20,8 +29,8 @@ step() { printf '\n[rehearse] %s\n' "$*"; }
 die() { echo "[rehearse] FAILED: $*" >&2; exit 1; }
 current() { sed -n 's/^APP_IMAGE=//p' "$work/release.env"; }
 compose() {
-  (cd "$work" && APP_IMAGE="$(current)" COMPOSE_PROJECT_NAME="$PROJECT" docker compose -p "$PROJECT" \
-    -f compose.yaml -f compose.local.yaml --env-file .env "$@")
+  (cd "$work" && APP_IMAGE="$(current)" COMPOSE_PROJECT_NAME="$PROJECT" COMPOSE_FILE="$FILES" \
+    docker compose -p "$PROJECT" --env-file .env "$@")
 }
 service_id() { compose ps -q "$1"; }
 running_image() { docker inspect -f '{{.Config.Image}}' "$(service_id app)"; }
@@ -35,10 +44,31 @@ app_sql() { # SQL on stdin, over the network login, as the app role
 }
 dump_now() { compose run --rm -T -e RUN_ONCE=1 "$@" pg-backup; }
 health_check() { compose run --rm -T --entrypoint sh pg-backup /scripts/check.sh; }
-fill() { # <volume suffix> <folder>: copy the folder into that read-only script volume
-  helper="$(docker create --pull never --network none --tmpfs /var/lib/postgresql/data -v "$PROJECT-$1:/s" "$PG_IMAGE")"
-  docker cp "$2/." "$helper:/s" >/dev/null
+fill() { # <name under rehearsal/> <folder>: copy the scripts into the one volume
+  rm -rf "$work/seed"
+  mkdir -p "$work/seed/rehearsal/$1"
+  cp -R "$2/." "$work/seed/rehearsal/$1/"
+  chmod -R go=rX "$work/seed"
+  # Mounted at the image's VOLUME path, so this helper makes no unnamed volume, and an
+  # empty volume gets the database user as its owner, as on a server. Never started.
+  helper="$(docker create --pull never --network none --memory 64m --memory-reservation 16m --cpus 0.25 --cpu-shares 256 \
+    -v "$VOLUME:/var/lib/postgresql/data" "$PG_IMAGE" true)"
+  docker cp "$work/seed/rehearsal" "$helper:/var/lib/postgresql/data/" >/dev/null
   docker rm "$helper" >/dev/null
+}
+# The root of the stand-in existing volume and another app's folder in it, as seen from outside.
+foreign() {
+  docker run --rm --pull never --network none --user 70:70 --read-only --cap-drop ALL --security-opt no-new-privileges --memory 64m --memory-reservation 16m --cpus 0.25 --cpu-shares 256 --tmpfs /var/lib/postgresql/data -v "$VOLUME:/v:ro" "$PG_IMAGE" stat -c '%u:%g %a %n' /v /v/neighbour-app
+}
+# Every container of the project, stopped ones too, may mount the one volume and no other.
+one_volume() {
+  for id in $(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT"); do
+    docker inspect -f '{{.Name}}{{range .Mounts}}{{if eq .Type "volume"}} {{.Destination}} rw={{.RW}}{{end}}{{end}}' "$id"
+    other="$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{println .Name}}{{end}}{{end}}' "$id" |
+      grep -v "^$VOLUME\$" | grep -c . || true)"
+    [ "$other" = 0 ] || die 'a second or unnamed volume is mounted'
+  done
+  [ "$(docker volume ls -q --filter "name=$PROJECT")" = "$VOLUME" ] || die "the project's volumes are not just $VOLUME"
 }
 
 cleanup() {
@@ -49,14 +79,12 @@ cleanup() {
   fi
   step 'cleanup'
   if [ -f "$work/.env" ]; then
-    (cd "$work" && APP_IMAGE="$A" COMPOSE_PROJECT_NAME="$PROJECT" docker compose -p "$PROJECT" -f compose.yaml \
-      -f compose.local.yaml --env-file .env --profile backup --profile restore-test down -v --remove-orphans) ||
+    (cd "$work" && APP_IMAGE="$A" COMPOSE_PROJECT_NAME="$PROJECT" COMPOSE_FILE="$FILES" docker compose -p "$PROJECT" \
+      --env-file .env --profile restore-test down --remove-orphans) ||
       echo "[rehearse] could not remove project $PROJECT" >&2
   fi
-  for volume in "$PROJECT-init-files" "$PROJECT-backup-files"; do
-    ! docker volume inspect "$volume" >/dev/null 2>&1 || docker volume rm "$volume" >/dev/null ||
-      echo "[rehearse] could not remove volume $volume" >&2
-  done
+  ! docker volume inspect "$VOLUME" >/dev/null 2>&1 || docker volume rm "$VOLUME" >/dev/null ||
+    echo "[rehearse] could not remove volume $VOLUME" >&2
   for image in "$BROKEN" "$CRASH"; do
     ! docker image inspect "$image" >/dev/null 2>&1 || docker rmi "$image" >/dev/null ||
       echo "[rehearse] could not remove image $image" >&2
@@ -69,26 +97,44 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 step "copy the files the pipeline copies to $work"
-tar -cf - compose.yaml compose.local.yaml env.example bootstrap-env.sh deploy.sh post-deploy-check.sh \
-  checks/probe.mjs postgres-init backup | tar -xf - -C "$work"
-for pair in init-files:postgres-init backup-files:backup; do
-  docker volume create "$PROJECT-${pair%:*}" >/dev/null
-  fill "${pair%:*}" "$work/${pair#*:}"
-done
+tar -cf - compose.yaml compose.shared-db.yaml compose.shared-volume.yaml compose.local.yaml env.example bootstrap-env.sh deploy.sh \
+  post-deploy-check.sh checks/probe.mjs postgres-init backup | tar -xf - -C "$work"
+docker volume create "$VOLUME" >/dev/null
+fill postgres-init "$work/postgres-init"
+fill backup "$work/backup"
 
 step 'generated throwaway secrets (names only are printed)'
-sh "$work/bootstrap-env.sh" portfolio.invalid rehearsal@example.invalid
+# No Traefik here: the loopback address stands for the proxy.
+TRUSTED_PROXY_IPS=127.0.0.1 sh "$work/bootstrap-env.sh" portfolio.invalid rehearsal@example.invalid
 [ -n "$(find "$work/.env" -perm 600)" ] || die '.env is not mode 600'
 if sh "$work/bootstrap-env.sh" portfolio.invalid rehearsal@example.invalid 2>/dev/null; then die '.env was overwritten'; fi
 echo 'ok   mode 600; a second run is refused'
+if [ "${SHARED_VOLUME:-0}" = 1 ]; then
+  printf '%s\n' 'COMPOSE_FILE=compose.yaml:compose.shared-volume.yaml' "DATA_VOLUME=$VOLUME" >>"$work/.env"
+  mkdir -p "$work/other/neighbour-app"
+  chmod 700 "$work/other/neighbour-app"
+  helper="$(docker create --pull never --network none --memory 64m --memory-reservation 16m --cpus 0.25 --cpu-shares 256 -v "$VOLUME:/var/lib/postgresql/data" "$PG_IMAGE" true)"
+  docker cp "$work/other/neighbour-app" "$helper:/var/lib/postgresql/data/" >/dev/null
+  docker rm "$helper" >/dev/null
+  before_foreign="$(foreign)"
+  printf 'existing volume %s before the first deploy:\n%s\n' "$VOLUME" "$before_foreign"
+fi
 
-step 'compose config: the server file alone, and with the local override'
-for extra in '' '-f compose.local.yaml'; do
-  # shellcheck disable=SC2086 # two words or none
-  warnings="$(cd "$work" && APP_IMAGE="$A" COMPOSE_PROJECT_NAME="$PROJECT" docker compose -p "$PROJECT" -f compose.yaml $extra \
-    --env-file .env --profile backup --profile restore-test config -q 2>&1)" || die "config: $warnings"
+step 'compose config: own database, local override, shared database; one volume in each'
+for files in compose.yaml "$FILES" compose.yaml:compose.shared-db.yaml compose.yaml:compose.shared-volume.yaml \
+  compose.yaml:compose.shared-volume.yaml:compose.shared-db.yaml; do
+  # compose <arguments>, with made-up settings for the shared file.
+  as() {
+    (cd "$work" && APP_IMAGE="$A" COMPOSE_PROJECT_NAME="$PROJECT" COMPOSE_FILE="$files" DB_HOST=db.invalid \
+      DB_NETWORK=db-invalid DATA_VOLUME="$VOLUME" docker compose -p "$PROJECT" --env-file .env --profile restore-test "$@")
+  }
+  warnings="$(as config -q 2>&1)" || die "config: $warnings"
   [ -z "$warnings" ] || die "config warns: $warnings"
-  echo "ok   config clean ${extra:-(compose.yaml)}"
+  [ "$(as config --volumes)" = data ] || die "$files declares more than the one volume"
+  as config | grep -qF 'Host(`www.portfolio.invalid`)' &&
+    as config | grep -qE 'redirectregex.replacement: https://portfolio.invalid/\$+\{1\}' ||
+    die "$files: no redirect from www to the host"
+  echo "ok   config clean, one volume: $files; services: $(as config --services | sort | tr '\n' ' ')"
 done
 
 mkdir "$work/empty"
@@ -100,9 +146,8 @@ printf 'FROM %s\nCMD ["node", "-e", "process.exit(1)"]\n' "$B" |
 step 'a first deploy that fails before the app creates its tables'
 if WAIT_SECONDS=45 deploy "$CRASH"; then die 'the crashing image was accepted'; fi
 [ ! -e "$work/release.env" ] || die 'release.env was written'
-docker volume inspect "$PROJECT-pg-data" >/dev/null || die 'no database volume'
 # The README recovery command, as printed there, while no release.env exists.
-(cd "$work" && APP_IMAGE="$CRASH" docker compose -p "$PROJECT" -f compose.yaml -f compose.local.yaml --env-file .env \
+(cd "$work" && APP_IMAGE="$CRASH" COMPOSE_FILE="$FILES" docker compose -p "$PROJECT" --env-file .env \
   exec -T postgres sh /docker-entrypoint-initdb.d/10-app-role.sh) >/dev/null || die 'the first-start recovery command failed'
 echo 'ok   the first-start script runs again without release.env'
 
@@ -137,6 +182,9 @@ as_role() { # <role> <password variable> <database> <sql>; network login inside 
 as_role portfolio_app DB_PASSWORD portfolio 'SELECT 1' >/dev/null || die 'the app role cannot sign in over the network'
 if as_role portfolio_app DB_PASSWORD template1 'SELECT 1' >/dev/null 2>&1; then die 'the app role can connect to template1'; fi
 echo 'ok   the app role cannot connect to template1'
+superuser "SELECT 'owner ' || pg_get_userbyid(datdba) || ', app limit ' || (SELECT rolconnlimit FROM pg_roles WHERE rolname = 'portfolio_app') FROM pg_database WHERE datname = 'portfolio'" |
+  grep -x 'owner portfolio_owner, app limit 10' || die 'unexpected database owner or connection limit'
+if as_role portfolio_app DB_PASSWORD portfolio 'ALTER DATABASE portfolio RENAME TO taken' >/dev/null 2>&1; then die 'the app role owns its database'; fi
 
 step 'backup role: reads, cannot write, not privileged'
 superuser "SELECT 'superuser=' || rolsuper || ' createdb=' || rolcreatedb || ' createrole=' || rolcreaterole || ' replication=' || rolreplication FROM pg_roles WHERE rolname = 'portfolio_backup'"
@@ -163,12 +211,28 @@ echo 'ok   second run works, restores a missing grant, changes no password'
 step 'dump and restore into a throwaway database'
 compose run --rm -T -e RUN_ONCE=1 pg-backup
 compose run --rm -T pg-restore-test
-compose run --rm -T --entrypoint sh pg-backup -c 'ls -ln /var/lib/postgresql/dumps; f=$(ls /var/lib/postgresql/dumps/portfolio-*.dump | tail -n 1); head -c 1500 "$f" >/var/lib/postgresql/dumps/broken.dump'
-if compose run --rm -T pg-restore-test /var/lib/postgresql/dumps/broken.dump >/dev/null 2>&1; then die 'a cut-off dump passed the restore test'; fi
+compose run --rm -T --entrypoint sh pg-backup -c 'cd "$1" && ls -ln && f=$(ls portfolio-*.dump | tail -n 1) && head -c 1500 "$f" >broken.dump' sh "$DUMPS"
+if compose run --rm -T pg-restore-test "$DUMPS/broken.dump" >/dev/null 2>&1; then die 'a cut-off dump passed the restore test'; fi
 echo 'ok   a cut-off dump fails the restore test'
+
+step 'the one volume: folders, owners, and what the dump jobs can reach'
+compose exec -T postgres sh -c 'stat -c "%u:%g %a %n" /var/lib/postgresql/data /var/lib/postgresql/data/portfolio \
+  "$PGDATA" "${PGDATA%/*}/backups" "${PGDATA%/*}"/backups/portfolio-*.dump'
+owners="$(compose exec -T postgres sh -c 'stat -c "%u:%g %a" "${PGDATA%/*}" "$PGDATA" "${PGDATA%/*}/backups" | sort -u')"
+[ "$owners" = '70:70 700' ] || die "unexpected owner or mode: $owners"
+[ -z "$(compose exec -T postgres sh -c 'find "${PGDATA%/*}/backups" -type f -name "portfolio-*.dump" ! -perm 600')" ] ||
+  die 'a dump is readable by others'
+compose run --rm -T --entrypoint sh pg-backup -c '
+  seen="$(ls /var/lib/postgresql/data/portfolio)"
+  echo "pg-backup sees in portfolio/: $seen"
+  [ "$seen" = backups ]' || die 'the dump job can reach more than the dumps'
+compose run --rm -T --entrypoint sh pg-restore-test -c '! touch "$1/rehearsal-no" 2>/dev/null' sh "$DUMPS" ||
+  die 'the restore test can write to the dumps'
+echo 'ok   uid 70, mode 700 folders and 600 dumps; the jobs see the dumps only; restore test reads only'
+
 compose run --rm -T --entrypoint sh pg-backup -c '
   set -eu
-  cd /var/lib/postgresql/dumps
+  cd /var/lib/postgresql/data/portfolio/backups
   f=$(ls portfolio-*.dump | tail -n 1)
   head -c $(($(wc -c <"$f") * 9 / 10)) "$f" >cut90.dump
   echo "90% cut: the listing still shows $(pg_restore -l cut90.dump | grep -c "TABLE DATA") tables"
@@ -178,15 +242,16 @@ compose run --rm -T --entrypoint sh pg-backup -c '
 echo 'ok   reading to the end fails the cut dump and passes the good one'
 
 step 'restore over the live database, as in the README (throwaway stack)'
-newest="$(compose run --rm -T --entrypoint sh pg-backup -c 'ls /var/lib/postgresql/dumps/portfolio-*.dump | tail -n 1')"
+newest="$(compose run --rm -T --entrypoint sh pg-backup -c 'ls "$1"/portfolio-*.dump | tail -n 1' sh "$DUMPS")"
 compose stop app pg-backup
 (
   PGPASSWORD="$(sed -n 's/^DB_PASSWORD=//p' "$work/.env")"
   export PGPASSWORD
   compose run --rm -T -e PGUSER=portfolio_app -e PGPASSWORD \
     --entrypoint pg_restore pg-backup --clean --if-exists --single-transaction --no-owner -d portfolio "$newest"
+  compose run --rm -T -e PGUSER=portfolio_app -e PGPASSWORD \
+    --entrypoint psql pg-backup -d portfolio -v ON_ERROR_STOP=1 -c 'DELETE FROM sessions'
 ) || die 'the live restore failed'
-superuser 'DELETE FROM sessions' >/dev/null
 compose up -d --wait --wait-timeout 90 app pg-backup
 content expect "Rehearsal marker $$"
 dump_now
@@ -227,10 +292,18 @@ ids="$(docker ps -q --filter "label=com.docker.compose.project=$PROJECT")"
 docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.PIDs}}' $ids
 for id in $ids; do
   docker inspect -f '{{.Name}} user={{.Config.User}} read-only={{.HostConfig.ReadonlyRootfs}} memory={{.HostConfig.Memory}} nano-cpus={{.HostConfig.NanoCpus}} cap-drop={{.HostConfig.CapDrop}} log={{.HostConfig.LogConfig.Config}}' "$id"
-  unnamed="$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$id" | tr ' ' '\n' | grep -cE '^[0-9a-f]{64}$' || true)"
-  [ "$unnamed" = 0 ] || die 'an unnamed volume was created'
 done
-echo 'ok   no unnamed volume'
+# The one-shot restore test too: made, looked at, removed.
+compose --profile restore-test create pg-restore-test >/dev/null
+one_volume
+compose rm -f pg-restore-test >/dev/null
+echo "ok   one volume ($VOLUME) in every container; no unnamed volume"
+if [ "${SHARED_VOLUME:-0}" = 1 ]; then
+  [ "$(foreign)" = "$before_foreign" ] || die 'the volume root or another folder in it changed'
+  seen="$(compose exec -T postgres ls /var/lib/postgresql/data)"
+  [ "$seen" = portfolio ] || die "the database server sees more than portfolio/: $seen"
+  echo 'ok   existing volume: root and the other folder unchanged; the database server sees portfolio/ only'
+fi
 
 step "deploy the second tag: ${B##*:}"
 deploy "${B##*:}"
@@ -264,7 +337,7 @@ sed 's/max_connections=20/max_connections=21/' "$work/compose.yaml" >"$work/comp
 cp "$work/compose.changed" "$work/compose.yaml"
 mkdir "$work/failing"
 printf '#!/bin/sh\nexit 1\n' >"$work/failing/backup.sh"
-fill backup-files "$work/failing"
+fill backup "$work/failing"
 for state in running stopped; do
   [ "$state" = running ] || compose stop postgres
   if deploy "$B"; then die 'deployed although the dump failed'; fi
@@ -272,7 +345,7 @@ for state in running stopped; do
   [ "$(superuser 'SHOW max_connections')" = 20 ] || die 'the new setting reached the database before the dump'
   echo "ok   $state database: same container, old setting"
 done
-fill backup-files "$work/backup"
+fill backup "$work/backup"
 
 step 'forward again (the new setting applies after the dump), then two bad images that must roll back'
 deploy "$B"
@@ -316,7 +389,8 @@ echo 'ok   pg-backup is healthy'
 [ "$(docker exec "$job" printenv BACKUP_PRUNE)" = 0 ] || die 'BACKUP_PRUNE is not 0'
 [ "$(docker exec "$job" printenv PGUSER)" = portfolio_backup ] || die 'pg-backup does not use the read-only role'
 echo 'ok   BACKUP_PRUNE=0, read-only role'
-(cd "$work" && docker compose -p "$PROJECT" -f compose.yaml -f compose.local.yaml --env-file .env --env-file release.env ps --format '{{.Service}} {{.State}}')
+(cd "$work" && COMPOSE_FILE="$FILES" docker compose -p "$PROJECT" --env-file .env --env-file release.env ps --format '{{.Service}} {{.State}}')
+one_volume
 
 step 'state files'
 cat "$work/release.env" "$work/previous.env" "$work/releases.log"

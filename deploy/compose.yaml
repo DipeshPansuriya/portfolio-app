@@ -1,7 +1,15 @@
 # Portfolio on the Hostinger VPS (ADR 0004). Deployed to /docker/portfolio next to Traefik.
-# Storage: ADR 0005 option B (own PostgreSQL and volumes), PROVISIONAL until the VPS live check.
+# Storage: ONE named volume. This file runs an own PostgreSQL, for a server with no shared
+# one: portfolio/pgdata and portfolio/backups inside that volume. With a shared PostgreSQL
+# add compose.shared-db.yaml (no database service; the volume holds the dumps only):
+#   COMPOSE_FILE=compose.yaml:compose.shared-db.yaml   in the server's .env
+# PROVISIONAL until the VPS live check says which one applies.
 # Variable names only. Secrets: the server's .env (bootstrap-env.sh). Image: release.env (deploy.sh).
 # No published ports, no `latest`, nothing runs as root.
+# Resources, every service: limits `cpus` and `mem_limit`; requests `cpu_shares` and
+# `mem_reservation`. On one Docker host a CPU request is a weight, used only when CPUs are
+# busy: 1024 is Docker's default (app, database); the dump jobs ask for a quarter of it.
+# (Compose ignores `deploy.resources.reservations.cpus` here.)
 #   docker compose --env-file .env --env-file release.env <command>
 # UNVERIFIED against the live host: Traefik network name and mode (TRAEFIK_NETWORK).
 name: portfolio
@@ -19,7 +27,7 @@ x-hardened: &hardened
   restart: unless-stopped
   logging: *logging
 
-# The three database services use this one pinned image.
+# The database services and its jobs use this one pinned image.
 x-postgres: &postgres
   <<: *hardened
   image: postgres:17.11-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
@@ -36,7 +44,8 @@ services:
       PUBLIC_ORIGIN: https://${PORTFOLIO_HOST:?set PORTFOLIO_HOST}
       # 1 = Traefik alone; 2 when another proxy or CDN sits in front.
       TRUST_PROXY: ${TRUST_PROXY:-1}
-      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      # Required: empty would trust X-Forwarded-For from every private peer.
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:?set TRUSTED_PROXY_IPS to the reverse proxy address}
       PG_POOL_MAX: "5"
       CREDENTIALS_DIR: /run/portfolio
       NODE_OPTIONS: --max-old-space-size=192
@@ -55,6 +64,7 @@ services:
     mem_limit: 256m
     mem_reservation: 96m
     cpus: 0.50
+    cpu_shares: 1024
     pids_limit: 100
     labels:
       traefik.enable: "true"
@@ -64,6 +74,16 @@ services:
       traefik.http.routers.portfolio.tls.certresolver: letsencrypt
       traefik.http.services.portfolio.loadbalancer.server.port: "4319"
       traefik.http.routers.portfolio.service: portfolio
+      # www.<host> answers with a permanent redirect to https://<host>, path kept. It needs its
+      # own DNS record, or no certificate can be issued for it.
+      traefik.http.routers.portfolio-www.rule: Host(`www.${PORTFOLIO_HOST}`)
+      traefik.http.routers.portfolio-www.entrypoints: websecure
+      traefik.http.routers.portfolio-www.tls.certresolver: letsencrypt
+      traefik.http.routers.portfolio-www.service: portfolio
+      traefik.http.routers.portfolio-www.middlewares: portfolio-www
+      traefik.http.middlewares.portfolio-www.redirectregex.regex: ^https?://www\.[^/]+/(.*)
+      traefik.http.middlewares.portfolio-www.redirectregex.replacement: https://${PORTFOLIO_HOST}/$${1}
+      traefik.http.middlewares.portfolio-www.redirectregex.permanent: "true"
       # Sign-in rate limit. This router takes the sign-in paths and every POST: the app also
       # accepts spellings such as /x/../api/auth/login that a path prefix alone can miss.
       traefik.http.routers.portfolio-auth.rule: Host(`${PORTFOLIO_HOST}`) && (PathPrefix(`/api/auth`) || Method(`POST`))
@@ -83,9 +103,18 @@ services:
 
   postgres:
     <<: *postgres
+    # Makes the two folders of the volume before the image starts; pg-backup mounts one.
+    entrypoint:
+      - sh
+      - -c
+      - '(umask 077; mkdir -p "$$PGDATA" "$${PGDATA%/*}/backups") && chmod 700 "$${PGDATA%/*}" && exec docker-entrypoint.sh "$$@"'
+      - --
     command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=20"]
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      # No `:?` here: compose.shared-db.yaml removes this service but compose still reads
+      # this line. The image refuses to create a database with an empty password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      PGDATA: /var/lib/postgresql/data/portfolio/pgdata
       # Read once, on the first start of an empty volume (postgres-init).
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
       # Read once too: the read-only role of the dump and restore-test jobs.
@@ -95,7 +124,8 @@ services:
       TZ: Etc/UTC
       PGTZ: Etc/UTC
     volumes:
-      - portfolio-pg-data:/var/lib/postgresql/data
+      # The image's VOLUME path: the named volume covers it, so no unnamed one appears.
+      - data:/var/lib/postgresql/data
       - ./postgres-init:/docker-entrypoint-initdb.d:ro
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -113,7 +143,29 @@ services:
     mem_limit: 256m
     mem_reservation: 96m
     cpus: 0.50
+    cpu_shares: 1024
     pids_limit: 100
+
+  # One shot (deploy.sh runs it first): makes portfolio/ and the dumps folder in the volume,
+  # so they exist before a service mounts them. The volume root itself is not changed.
+  pg-folders:
+    <<: *postgres
+    profiles: [setup]
+    restart: "no"
+    entrypoint:
+      - sh
+      - -c
+      - 'umask 077; d=/var/lib/postgresql/data/portfolio; mkdir -p "$$d/backups" && chmod 700 "$$d" "$$d/backups"'
+    command: []
+    volumes:
+      - data:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp:size=1m,mode=1777
+    mem_limit: 32m
+    mem_reservation: 8m
+    cpus: 0.25
+    cpu_shares: 256
+    pids_limit: 20
 
   # Nightly dump, on. Nothing is deleted automatically.
   # deploy.sh also runs it once before every deploy. Failure: unhealthy, ALERT in the log,
@@ -137,8 +189,12 @@ services:
       start_period: 2m
       start_interval: 5s
     volumes:
-      # Mounted over the postgres home folder, so a new volume belongs to uid 70.
-      - portfolio-pg-backups:/var/lib/postgresql
+      # The dumps folder of the volume only: this job cannot reach the database files.
+      - type: volume
+        source: data
+        target: /var/lib/postgresql/data/portfolio/backups
+        volume:
+          subpath: portfolio/backups
       - ./backup:/scripts:ro
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -150,6 +206,7 @@ services:
     mem_limit: 64m
     mem_reservation: 16m
     cpus: 0.25
+    cpu_shares: 256
     pids_limit: 50
 
   # One shot: restores the newest dump into a throwaway server inside this container.
@@ -166,17 +223,26 @@ services:
       PGDATABASE: portfolio
       PGPASSWORD: ${BACKUP_DB_PASSWORD:?set BACKUP_DB_PASSWORD}
     volumes:
-      - portfolio-pg-backups:/var/lib/postgresql:ro
+      - type: volume
+        source: data
+        target: /var/lib/postgresql/data/portfolio/backups
+        read_only: true
+        volume:
+          subpath: portfolio/backups
       - ./backup:/scripts:ro
     tmpfs:
       - /tmp:size=16m,mode=1777
       # The throwaway server lives here, in memory.
-      - /var/lib/postgresql/data:size=192m,uid=70,gid=70,mode=0700
+      - /scratch:size=192m,uid=70,gid=70,mode=0700
+      # Covers the image's VOLUME line.
+      - /var/lib/postgresql/data:size=1m
     depends_on:
       postgres:
         condition: service_healthy
     mem_limit: 320m
+    mem_reservation: 64m
     cpus: 0.50
+    cpu_shares: 256
     pids_limit: 50
 
 networks:
@@ -186,8 +252,7 @@ networks:
   portfolio-data:
     internal: true
 
+# The only volume: portfolio-data, or an existing one with compose.shared-volume.yaml.
 volumes:
-  portfolio-pg-data:
-    name: ${COMPOSE_PROJECT_NAME:-portfolio}-pg-data
-  portfolio-pg-backups:
-    name: ${COMPOSE_PROJECT_NAME:-portfolio}-pg-backups
+  data:
+    name: ${COMPOSE_PROJECT_NAME:-portfolio}-data

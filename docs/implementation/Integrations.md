@@ -18,9 +18,9 @@ deploy tools, plus outbound links.
 | PostgreSQL 17 | container image, pinned by digest | database | `deploy/compose.yaml`, `scripts/ci.sh` | CI and deploy files |
 | Trivy | scanner | image vulnerability and secret scan | `scripts/ci.sh` gate 7 | CI |
 | gitleaks | scanner | secret scan | `scripts/ci.sh` gate 7 | CI |
-| GitHub Actions, CodeQL, Dependabot | source host features | checks and updates | `.github/` | to start at publish |
+| GitHub Actions, CodeQL, Dependabot | source host features | checks and updates | `.github/` | running on the published copy |
 | Jenkins | CI/CD | release stages | `Jenkinsfile` | written, **not active** |
-| Docker Hub | container registry | image push at release | `Jenkinsfile` | nothing pushed |
+| GitHub Container Registry (ghcr.io) | container registry | image push at release (stage 9) | `Jenkinsfile`, `scripts/ci.sh` | nothing pushed |
 | Traefik with Let's Encrypt | reverse proxy and TLS | routing, TLS, sign-in rate limit | labels in `deploy/compose.yaml` | written; UNVERIFIED on a live server |
 | Virtual server | host | runs the Docker stack | [ADR 0004](../adr/0004-deploy-hostinger-vps.md) | target; not checked, not deployed |
 
@@ -49,7 +49,7 @@ cache made by `deploy/offline-npm-cache.mjs`.
 |---|---|
 | PostgreSQL | the test suite on a throwaway PostgreSQL (`scripts/ci.sh` gate 4) |
 | Image and scans | gates 6 to 8; `deploy/check-pipeline.sh` |
-| Deploy and rollback | `deploy/check-scripts.sh` (stand-ins), `deploy/rehearse.sh` (throwaway stack) |
+| Deploy and rollback | `deploy/check-scripts.sh` (stand-ins), `deploy/rehearse.sh` and `deploy/rehearse-shared.sh` (throwaway stacks) |
 | Traefik rate limit | manual test after the first deploy; UNVERIFIED |
 
 ## Failure behaviour

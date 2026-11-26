@@ -199,10 +199,7 @@ export function validateContent(data) {
   return errors
 }
 
-/**
- * The longest text a save accepts, by field path. Only saves are held to it, so
- * a revision stored earlier still boots and restores.
- */
+/** The longest text a save accepts, by field path. */
 const MAX_LENGTH = Object.fromEntries(
   Object.entries({
     8: 'profile.initials',
@@ -221,14 +218,39 @@ const MAX_LENGTH = Object.fromEntries(
   }).flatMap(([max, paths]) => paths.split(/\s+/).map((path) => [path, Number(max)])),
 )
 
-export function lengthProblems(value, path = '') {
+/** Text that is too long, or holds one half of a character pair (an emoji cut in two). */
+function textProblems(value, path = '') {
   if (isStr(value)) {
+    if (!value.isWellFormed()) return [`${path} holds half a character, such as a cut emoji`]
     const max = MAX_LENGTH[path.replace(/\[\d+\]/g, '[]')]
     return value.length > max ? [`${path} must be at most ${max} characters`] : []
   }
-  if (isArr(value)) return value.flatMap((item, i) => lengthProblems(item, `${path}[${i}]`))
+  if (isArr(value)) return value.flatMap((item, i) => textProblems(item, `${path}[${i}]`))
   if (!isObj(value)) return []
-  return Object.entries(value).flatMap(([key, item]) => lengthProblems(item, path ? `${path}.${key}` : key))
+  return Object.entries(value).flatMap(([key, item]) => textProblems(item, path ? `${path}.${key}` : key))
+}
+
+/**
+ * What only a save is held to, besides `validateContent`: these rules are newer
+ * than stored revisions, and a stored one must still boot and restore.
+ */
+export function saveProblems(data) {
+  const problems = textProblems(data)
+  const headline = data?.hero?.headline
+  // `|` only splits the headline: alone it leaves the main heading empty.
+  if (isStr(headline) && headline.includes('|') && !headline.replaceAll('|', '').trim()) {
+    problems.push('hero.headline needs words, not only "|"')
+  }
+  const chapters = isArr(data?.chapters) ? data.chapters : []
+  chapters.forEach((c, i) => {
+    // The server writes the content into an element with this id.
+    if (c?.id === 'site-content') problems.push(`chapter id "${c.id}" is reserved by the page layout`)
+    // CSS has no 5 or 7 digit colour; `validateContent` refuses the other wrong lengths.
+    if (isStr(c?.accent) && /^#([0-9a-f]{5}|[0-9a-f]{7})$/i.test(c.accent)) {
+      problems.push(`chapters[${i}].accent must be a hex colour of 3, 4, 6 or 8 digits`)
+    }
+  })
+  return problems
 }
 
 /** `{ revision, body }` of the newest row. One app instance owns it. */

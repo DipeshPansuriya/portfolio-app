@@ -10,6 +10,7 @@ import {
   ROAD_HALF_WIDTH,
 } from './track'
 import { GANTRY, GATE, gateBarY } from './view'
+import { signText } from '../content/text'
 
 /** Road surface, edge markings and barrier posts. */
 export function Circuit({ track }: { track: Track }) {
@@ -129,12 +130,14 @@ function makeGateTexture(label: string, color: string, hint: string) {
   ctx.font = '600 62px "Space Grotesk", system-ui, sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  // The last argument squeezes long text into the sign instead of cutting it off.
-  ctx.fillText(label.toUpperCase(), w / 2, h / 2 - 18, w - 48)
+  // The last argument squeezes long text into the sign; `signText` cuts what would end up unreadable.
+  const line = (text: string, y: number) =>
+    ctx.fillText(signText(text.toUpperCase(), w - 48, (t) => ctx.measureText(t).width), w / 2, y, w - 48)
+  line(label, h / 2 - 18)
 
   ctx.fillStyle = 'rgba(154,163,178,0.95)'
   ctx.font = '400 28px "JetBrains Mono", monospace'
-  ctx.fillText(hint.toUpperCase(), w / 2, h / 2 + 40, w - 48)
+  line(hint, h / 2 + 40)
 
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace

@@ -131,7 +131,7 @@ test('shell: `</script>` in content cannot break out of the data block or the ma
     c.contact.body = nasty
   })
   const html = (await s.call('/')).raw.toString()
-  assert.doesNotMatch(html, /<script>|<img |<!-- \$/)
+  assert.doesNotMatch(html, /<script>|<img |<!-- \$/i)
   assert.equal(html.match(/<script/g).length, 1)
   assert.equal(html.match(/<\/script>/g).length, 1)
   assert.equal(blocks(html).length, 1)

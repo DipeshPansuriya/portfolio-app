@@ -29,6 +29,15 @@ export function fieldErrors(problems: string[], chapters: { id: string }[]) {
   return fields
 }
 
+/** The chapter to show after a refusal: the open one if it has a refused field, else the first that does. */
+export function chapterToOpen(fields: ReadonlyMap<string, string>, open: number | null) {
+  const refused = [...fields.keys()].flatMap((path) => {
+    const found = path.match(/^chapters\[(\d+)\]/)
+    return found ? [Number(found[1])] : []
+  })
+  return !refused.length || (open !== null && refused.includes(open)) ? open : Math.min(...refused)
+}
+
 /** The sign-in answers that refuse what was typed, not the timing of it. */
 export const signInRefused = (status: number) => status === 400 || status === 401
 

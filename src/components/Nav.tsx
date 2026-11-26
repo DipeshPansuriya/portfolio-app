@@ -20,6 +20,24 @@ export function Nav({ theme, onToggleTheme, chapters, profile, onDrive }: Props)
   const menuButton = useRef<HTMLButtonElement>(null)
   // Chapter links sit in the bar from 1024 px, seven or eight from 1280 px, more never. Else the menu.
   const fit = chapters.length > 8 ? 'menu' : chapters.length > 6 ? 'many' : 'few'
+  const links = useRef<HTMLDivElement>(null)
+  // The count says when the links may sit in the bar; their width says whether they do.
+  const [crowded, setCrowded] = useState(false)
+  const menuFit = crowded ? 'menu' : fit
+
+  useEffect(() => {
+    const bar = links.current
+    if (!bar) return
+    const observer = new ResizeObserver(() => {
+      // Measured as if the menu button were away, as it is whenever the links are in the bar.
+      const button = menuButton.current
+      const spare = button?.offsetWidth ? button.offsetWidth + parseFloat(getComputedStyle(button.parentElement!).columnGap) : 0
+      setCrowded(bar.scrollWidth > bar.clientWidth + spare + 1)
+    })
+    // The links too: a late web font changes their width without resizing the bar.
+    for (const element of [bar, ...bar.children]) observer.observe(element)
+    return () => observer.disconnect()
+  }, [chapters])
 
   const { scrollYProgress } = useScroll()
   const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 28, restDelta: 0.001 })
@@ -49,13 +67,15 @@ export function Nav({ theme, onToggleTheme, chapters, profile, onDrive }: Props)
     const onResize = () => {
       if (!menuButton.current?.getClientRects().length) setOpen(false)
     }
+    // Also when the links start to fit again, which can follow the resize event.
+    onResize()
     window.addEventListener('keydown', onKey)
     window.addEventListener('resize', onResize)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', onResize)
     }
-  }, [open])
+  }, [open, crowded])
 
   function go(id: string) {
     setOpen(false)
@@ -96,10 +116,11 @@ export function Nav({ theme, onToggleTheme, chapters, profile, onDrive }: Props)
             </span>
           </button>
 
-          {/* scrolls sideways rather than pushing the buttons off, if long labels still do not fit */}
+          {/* Links too long for the bar stay laid out, so they can be measured, but unseen: the menu takes over. */}
           <div
+            ref={links}
             data-fit={fit}
-            className="mx-auto hidden min-w-0 items-center gap-0.5 overflow-x-auto p-1 [scrollbar-width:none] lg:data-[fit=few]:flex xl:data-[fit=many]:flex"
+            className={`mx-auto hidden min-w-0 items-center gap-0.5 overflow-x-auto p-1 [scrollbar-width:none] lg:data-[fit=few]:flex xl:data-[fit=many]:flex ${crowded ? 'invisible' : ''}`}
           >
             {chapters.map((item) => {
               const isActive = active === item.id
@@ -173,7 +194,7 @@ export function Nav({ theme, onToggleTheme, chapters, profile, onDrive }: Props)
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
               aria-label={open ? 'Close menu' : 'Open menu'}
-              data-fit={fit}
+              data-fit={menuFit}
               className="grid size-9 shrink-0 place-items-center rounded-lg border border-line bg-surface text-ink lg:data-[fit=few]:hidden xl:data-[fit=many]:hidden"
             >
               {open ? <CloseIcon className="size-4" /> : <MenuIcon className="size-4" />}
@@ -185,7 +206,7 @@ export function Nav({ theme, onToggleTheme, chapters, profile, onDrive }: Props)
       <AnimatePresence>
         {open && (
           <motion.div
-            data-fit={fit}
+            data-fit={menuFit}
             className="fixed inset-0 z-40 bg-bg/95 pt-24 backdrop-blur-xl lg:data-[fit=few]:hidden xl:data-[fit=many]:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -206,10 +227,10 @@ export function Nav({ theme, onToggleTheme, chapters, profile, onDrive }: Props)
                     initial={{ opacity: 0, y: 22 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.06 + i * 0.05, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex items-baseline justify-between border-b border-line py-5 text-left"
+                    className="flex items-baseline justify-between gap-3 border-b border-line py-5 text-left"
                   >
-                    <span className="font-display text-3xl font-medium tracking-tight">{item.label}</span>
-                    <span className="font-mono text-[10px] text-faint">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="min-w-0 font-display text-3xl font-medium tracking-tight">{item.label}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-faint">{String(i + 1).padStart(2, '0')}</span>
                   </motion.button>
                 ))}
                 <motion.p

@@ -44,7 +44,8 @@ One React app (public page; admin and game loaded only when needed), one Node pr
 | Element | Behaviour |
 |---|---|
 | Navigation, chapter links in the bar | up to 6 chapters: from 1024 px wide; 7 or 8: from 1280 px; 9 or more: never |
-| Navigation, otherwise | a menu button; long link rows scroll sideways instead of pushing buttons off screen |
+| Navigation, otherwise | a menu button; it also replaces the links when their names do not fit the bar |
+| Long words and addresses | wrap anywhere rather than widen or leave their column; the contact email breaks before the domain first |
 | Hero stats | any number of entries; two per row on narrow screens, four per row on wide ones |
 | Hero tech ring | each icon is sized by its `level` (0 to 100) |
 | Contact buttons in a chapter | shown on the chapter with the id `contact`, else on the last chapter |
@@ -72,16 +73,20 @@ hovered or focused), finish card with best time.
 - Game keys work only while the circuit is open. Touch devices get an on-screen pad.
 - A lap in which "Next" (fast travel) was used does not set a best time.
 - Intro and finish cards stay inside the screen on small sizes: the middle scrolls, the main buttons stay visible.
-- Notices sit in the left column under the lap counters, clear of the gate card and the pad.
+- Notices sit in the left column under the lap counters, clear of the gate card and the pad, three lines at most.
+- A gate sign squeezes a long name or hint, and cuts it with an ellipsis beyond 1.6 times the sign width.
 
 ### 6.4 Admin
 
 Tabs: Profile (with search and sharing), Hero and stats, Chapters, Principles, Contact, Tech stack, Raw JSON,
-History, Account. `Ctrl` or `Cmd` + `S` saves. Refused saves list the problems and mark the fields. On a narrow
+History, Account. `Ctrl` or `Cmd` + `S` saves. Refused saves list the problems and mark the fields; the Chapters tab
+opens the first chapter that holds a marked field. On a narrow
 phone the chapter rows wrap so the row buttons keep their size; sliders use the native control at 24 px height.
 
 Chapter fields: id, label, kicker, title, body, bullets, accent, hint. The hint shows under the chapter title and on
-its island sign. Reserved ids: `hero`, `contact-card`, `contact-heading`, `main`, `root`.
+its island sign. Reserved ids: `hero`, `contact-card`, `contact-heading`, `main`, `root`, `site-content`.
+Refused on save only, so stored revisions still start and restore: half a character (a cut emoji), an accent of 5 or 7
+hex digits, a headline that is only `|`, and the id `site-content`.
 
 ### 6.5 Visual tokens
 

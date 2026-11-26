@@ -131,7 +131,7 @@ test('head: content cannot break out of a tag, an attribute or the data blocks',
   })
   assert.equal((await save(s, await s.signedIn(), content)).status, 200)
   const html = (await s.call('/')).raw.toString()
-  assert.doesNotMatch(html, /<script>|<img /)
+  assert.doesNotMatch(html, /<script>|<img /i)
   assert.equal(html.match(/<noscript>/g).length, 1)
   assert.equal(html.match(/<\/script>/g).length, template.match(/<\/script>/g).length + 1)
   const now = head(html)

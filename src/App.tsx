@@ -40,8 +40,9 @@ function Shell() {
     opener.current = null
   }, [drive])
 
+  // One long word or address wraps, also in grid and flex columns, instead of widening or leaving them.
   return (
-    <div className="relative min-h-screen bg-bg text-ink">
+    <div className="relative min-h-screen bg-bg text-ink wrap-anywhere">
       {/* inert takes the whole page out of tab order and the accessibility tree */}
       <div inert={drive}>
         <a

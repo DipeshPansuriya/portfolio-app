@@ -11,7 +11,7 @@ untested (UNVERIFIED).
 |---|---|---|
 | 1 | install from the lockfile | `npm ci --ignore-scripts` |
 | 2 | typecheck | `tsc -b` |
-| 3 | tests on SQLite | `npm test` |
+| 3 | tests on SQLite | `node --test`; a skipped or todo test fails the gate |
 | 4 | tests on a throwaway PostgreSQL | the same tests on a pinned PostgreSQL image: generated password, resource limits, in memory, removed after |
 | 5 | build and bundle budget | build; first-load JavaScript at most 160 kB, CSS at most 15 kB (gzip) |
 | 6 | image build | `Dockerfile` |
@@ -24,7 +24,7 @@ expires.
 
 ## 2. Test suite
 
-`npm test` runs `node --test tests/*.test.mjs`.
+`npm test` runs `node --test tests/*.test.mjs`. Each file and its test count: [CI and PR checks](../CI-AND-PR-CHECKS.md#4-test-files-and-what-they-cover).
 
 | File | Area |
 |---|---|
@@ -52,6 +52,10 @@ Static checks without Docker: `sh deploy/check-pipeline.sh`, `sh deploy/check-sc
 `python3 scripts/check_docs.py`, `./scripts/security_audit.sh --quick`.
 
 ## 3. Recorded results (2026-11-26)
+
+Newest result: 170 of 170 on SQLite and 170 of 170 on PostgreSQL, local, at commit `0813095` (2026-11-26; independent
+re-check pending). Earlier: 156 of 156 on each database at `c270d08`. The published copy passed 151 of 151 on both
+databases in its GitHub runs (2026-11-26). Counts are rechecked after each code change.
 
 Sections 3.1 to 3.3 are developer runs, not an independent pass. Newest first.
 
@@ -127,7 +131,7 @@ Gate 7 was not part of that pass.
 - PostgreSQL tests and Docker gates on the latest code: no result is recorded here (3.1).
 - Real phones, Safari, Firefox, screen readers, 200% zoom, foldable devices, screens wider than 1440 px.
 - Full lap by touch.
-- GitHub workflows, Linux runners, Jenkins.
+- Jenkins: no job exists. GitHub workflows ran on the published copy (9 runs, 2026-11-26), and the image gate ran on GitHub's runner. No browser test runs in CI.
 - A live server: proxy rate limit, TLS, deploy, rollback, nightly backup over several days, restore.
 - Processor architectures other than the one scanned locally.
 - The full in-container web build (stage `webbuild`).

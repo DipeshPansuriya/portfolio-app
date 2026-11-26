@@ -255,3 +255,11 @@ test('start line: nothing overhead reaches into the camera view, so the HUD stay
   }
   assert.equal(g.gateBarY('craft'), 6, 'other gates keep their height')
 })
+
+test('transport security: production asks for HTTPS for a year, on this host only', async () => {
+  const s = await start()
+  for (const path of ['/', '/api/content', '/no-such-page']) {
+    // No includeSubDomains: on a main domain it would force HTTPS on every other service under it.
+    assert.equal((await s.call(path)).headers['strict-transport-security'], 'max-age=31536000', path)
+  }
+})

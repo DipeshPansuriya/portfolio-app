@@ -41,16 +41,17 @@ Keys outside the schema are dropped on save.
 |---|---|
 | `meta` (optional) | `description`, `shareDescription`: text; empty or absent keeps the built-in page tag |
 | `profile` | name, initials, role, tagline, location, timezone, email (must look like one), availability: required; `socials[]` with `label` and `href` (`https://`, `mailto:`, `tel:` or a local `/` path, not `//`), `handle` text if present |
-| `hero` | eyebrow, headline, subline, primaryCta, secondaryCta: required |
+| `hero` | eyebrow, headline, subline, primaryCta, secondaryCta: required; the headline needs words, not only `|` |
 | `stats[]` | at least one; value and label required, suffix may be empty |
-| `chapters[]` | at least one; unique `id` of lower-case letters, digits and dashes, not reserved; label, kicker, title, body, hint, at least one bullet; hex `accent` |
+| `chapters[]` | at least one; unique `id` of lower-case letters, digits and dashes, not reserved (`site-content` is reserved by the page layout); label, kicker, title, body, hint, at least one bullet; `accent` as in 4.1 |
 | `principles[]` | title and body |
 | `contact` | heading, body, primaryLabel |
 | `stack[]` | at least one; name, `icon` from the bundled list, `level` 0 to 100 |
 
 ### 4.1 Length limits
 
-Checked **on save only**, so older revisions still start and restore.
+Checked **on save only**, so older revisions still start and restore. A save that would split one character (for
+example an emoji in initials) is refused. Accent colours are `#` plus 3, 4, 6 or 8 hex digits.
 
 | Characters | Fields |
 |---|---|
@@ -102,10 +103,10 @@ version table.
 
 Nightly `pg_dump -Fc` and a dump before every deploy; nothing is deleted automatically (`BACKUP_PRUNE=0`). Restore
 tests run into a throwaway server. Commands, failure signals and the live restore steps:
-[deploy guide](../deploy/README.md#backup-and-restore). Dumps are on the same disk: a copy elsewhere is not set up.
+[deploy guide](../deploy/README.md#backup-and-restore). Dumps are on the same disk as the database (one volume, own-database path). A copy off that disk is a go-live item and is not set up. With a shared database the dumps stay in this project's volume; the roles get `SELECT` on `portfolio` only.
 
 ## 10. Verification and gaps
 
 Tests run on SQLite and on PostgreSQL ([Testing](implementation/Testing-QA-Debugging.md)). Dump and restore were
-rehearsed locally with `deploy/rehearse.sh`. UNVERIFIED: the full live restore on a server, other processor
+rehearsed locally with `deploy/rehearse.sh` (own database) and `deploy/rehearse-shared.sh` (shared-database path, stand-in server). UNVERIFIED: the full live restore on a server, other processor
 architectures, growth rate.

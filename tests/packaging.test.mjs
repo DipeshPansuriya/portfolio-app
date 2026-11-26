@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { scratch, start, source } from './harness.mjs'
 
 const json = (path) => JSON.parse(readFileSync(join(source, path), 'utf8'))
@@ -90,8 +91,8 @@ test('bundle: a missing build or a missing file fails', () => {
 test('ci.sh: gates 1-5 in order, with a pinned, limited, throwaway PostgreSQL', () => {
   assert.ok(existsSync(join(source, 'scripts/ci.sh')))
   const text = readFileSync(join(source, 'scripts/ci.sh'), 'utf8')
-  const order = ['npm ci', 'npm run typecheck', 'npm test', 'TEST_DATABASE_URL="postgres', 'npm run build', 'scripts/check-bundle.mjs']
-  const at = order.map((step) => text.search(new RegExp(`^(?!#).*${step.replace(/[.$]/g, '\\$&')}`, 'm')))
+  const order = ['npm ci', 'npm run typecheck', 'node --test', 'TEST_DATABASE_URL="postgres', 'npm run build', 'scripts/check-bundle.mjs']
+  const at = order.map((step) => text.search(new RegExp(`^(?!#).*${step.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'm')))
   assert.ok(at.every((n, i) => n >= 0 && (i === 0 || n > at[i - 1])), JSON.stringify(at))
   assert.match(text, /^set -eu$/m)
   assert.match(text, /postgres:17\.11-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb/)
@@ -101,6 +102,47 @@ test('ci.sh: gates 1-5 in order, with a pinned, limited, throwaway PostgreSQL', 
   const run = text.match(/docker run [\s\S]*?"\$PG_IMAGE"/)[0]
   assert.doesNotMatch(run, /\s(-v|--volume|--mount)\b/, 'nothing from the host is mounted')
   assert.doesNotMatch(text, /POSTGRES_PASSWORD=[^"$\s]/, 'no fixed password')
+})
+
+test('ci.sh: the image is named <registry>/<owner>/portfolio-app:<version>-<short sha>', () => {
+  const env = { ...process.env }
+  delete env.APP_IMAGE
+  const run = spawnSync('sh', [join(source, 'scripts/ci.sh'), '--image'], { encoding: 'utf8', env })
+  assert.equal(run.status, 0, run.stderr)
+  const version = json('package.json').version.replaceAll('.', '\\.')
+  assert.match(run.stdout.trim(), new RegExp(`^ghcr\\.io/dipeshpansuriya/portfolio-app:${version}-([0-9a-f]{8}(-dirty)?|unknown)$`))
+})
+
+test('test gates: gates 3 and 4 fail on a skipped or todo test', () => {
+  const ci = readFileSync(join(source, 'scripts/ci.sh'), 'utf8')
+  assert.equal(ci.match(/^ *(\(export TEST_DATABASE_URL=.*; )?run_tests\)?$/gm)?.length, 2)
+  const dir = mkdtempSync(join(tmpdir(), 'portfolio-skips-'))
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT // set by this run; the inner one has to report on its own
+  const reporter = pathToFileURL(join(source, 'scripts/no-skips-reporter.mjs')).href
+  const gate = (body) => {
+    writeFileSync(join(dir, 'case.test.mjs'), `import { describe, test } from 'node:test'\n${body}\n`)
+    const run = spawnSync(process.execPath, ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout',
+      `--test-reporter=${reporter}`, '--test-reporter-destination=stderr', 'case.test.mjs'], { cwd: dir, encoding: 'utf8', env })
+    return { status: run.status, out: run.stdout + run.stderr }
+  }
+  try {
+    const clean = gate("test('runs', () => {})")
+    assert.equal(clean.status, 0, clean.out)
+    for (const body of [
+      "test('a', () => {})\ntest('b', { skip: true }, () => {})",
+      "test('b', (t) => t.skip('tool missing'))",
+      "describe.skip('s', () => { test('b', () => {}) })",
+      "test.todo('b')",
+      "test('b', { todo: true }, () => { throw new Error('later') })",
+    ]) {
+      const run = gate(body)
+      assert.equal(run.status, 1, `${body}\n${run.out}`)
+      assert.match(run.out, /\[no-skips\] FAILED/)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 /* ------------------------------------------------------------ test database */

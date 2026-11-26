@@ -30,7 +30,7 @@ export function HeroShell({ content }: { content: SiteContent }) {
   const [lead, accent] = splitHeadline(hero.headline)
 
   return (
-    <div className="relative min-h-screen bg-bg text-ink">
+    <div className="relative min-h-screen bg-bg text-ink wrap-anywhere">
       <main className="relative z-10">
         <section id="hero" className={c.section}>
           <div className={c.grid}>

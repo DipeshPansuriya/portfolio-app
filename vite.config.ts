@@ -1,11 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig, normalizePath } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath } from 'node:url'
 
 // Runtime secrets (database, generated password). Anchored to this folder
 // because a bare `data/**` rule would also block the source files in `src/data/`.
-const dataDir = fileURLToPath(new URL('./data', import.meta.url)).replace(/[()[\]{}*?!+@|]/g, '\\$&')
+const dataDir = normalizePath(fileURLToPath(new URL('./data', import.meta.url))).replace(/[()[\]{}*?!+@|\\]/g, '\\$&')
 
 // The admin API is a separate Node process (`npm run admin`).
 const api = { target: process.env.ADMIN_ORIGIN || 'http://127.0.0.1:4319', changeOrigin: false }

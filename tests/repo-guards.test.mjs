@@ -2,7 +2,7 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -373,8 +373,12 @@ def drop(name, kind):
 def fewer_checks(live):
     rule(live["main-protection"], "required_status_checks")["parameters"]["required_status_checks"].pop()
 
+def other_app(live):
+    rule(live["main-protection"], "required_status_checks")["parameters"]["required_status_checks"][0]["integration_id"] = 1
+
 main, tags = "main-protection", "release-tags"
 weakened = {
+    "check reported by another app": other_app,
     "branch excluded": refs(main, ["~DEFAULT_BRANCH"], ["refs/heads/main"]),
     "another branch protected": refs(main, ["refs/heads/other"], []),
     "tags narrowed": refs(tags, ["refs/tags/v0*"], []),
@@ -392,7 +396,10 @@ weakened = {
     "force push": drop(main, "non_fast_forward"),
 }
 tag_rules = [r["type"] for r in next(r for r in s.RULESETS if r["name"] == tags)["rules"]]
-print(json.dumps({"tag_rules": tag_rules, "intact": failures(), "missed": [k for k, c in weakened.items() if not failures(c)]}))
+checks = next(r for r in s.RULESETS if r["name"] == main)
+apps = {c.get("integration_id") for c in rule(checks, "required_status_checks")["parameters"]["required_status_checks"]}
+policy = [s.REPO_SETTINGS["allow_auto_merge"], s.FORK_APPROVAL["approval_policy"], list(apps)]
+print(json.dumps({"tag_rules": tag_rules, "policy": policy, "intact": failures(), "missed": [k for k, c in weakened.items() if not failures(c)]}))
 `
 
 test('rulesets: v* tags cannot move, and check reports a weakened ruleset', { skip }, () => {
@@ -402,6 +409,15 @@ test('rulesets: v* tags cannot move, and check reports a weakened ruleset', { sk
   assert.deepEqual([...result.tag_rules].sort(), ['deletion', 'non_fast_forward', 'update'])
   assert.deepEqual(result.intact, [])
   assert.deepEqual(result.missed, [])
+  // No auto-merge, every outside contributor approved, checks pinned to GitHub Actions.
+  assert.deepEqual(result.policy, [false, 'all_external_contributors', [15368]])
+})
+
+test('workflows: nothing merges a pull request by itself', () => {
+  const folder = join(source, '.github/workflows')
+  for (const name of readdirSync(folder)) {
+    assert.doesNotMatch(readFileSync(join(folder, name), 'utf8'), /gh pr merge|enablePullRequestAutoMerge|pulls\.merge|auto-?merge/i, name)
+  }
 })
 
 /* ---------------------------------------------------------- review workflow */

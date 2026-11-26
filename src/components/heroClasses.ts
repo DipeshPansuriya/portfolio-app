@@ -4,7 +4,7 @@ export const heroClasses = {
   grid: 'relative mx-auto grid w-full max-w-6xl grid-cols-1 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] lg:items-center lg:gap-4',
   copy: 'relative z-10 flex flex-col pb-6 lg:pb-14',
   eyebrow: 'glass inline-flex w-fit items-center gap-2.5 rounded-full py-1.5 pl-2 pr-3.5',
-  eyebrowDot: 'relative grid size-5 place-items-center rounded-full bg-accent/15',
+  eyebrowDot: 'relative grid size-5 shrink-0 place-items-center rounded-full bg-accent/15',
   eyebrowPulse: 'size-1.5 rounded-full bg-accent animate-pulse-dot',
   eyebrowText: 'font-mono text-[10px] uppercase tracking-[0.16em] text-muted',
   eyebrowRule: 'hidden h-3 w-px bg-line-strong sm:block',

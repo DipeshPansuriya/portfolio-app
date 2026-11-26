@@ -57,7 +57,7 @@ import {
 } from './guard.mjs'
 import {
   validateContent,
-  lengthProblems,
+  saveProblems,
   loadContent,
   liveContent,
   skippedRevisions,
@@ -210,7 +210,8 @@ function securityHeaders(res) {
       "object-src 'none'",
     ].join('; '),
   )
-  if (PROD) res.setHeader('strict-transport-security', 'max-age=31536000; includeSubDomains')
+  // This host only: the site runs on a main domain whose other subdomains it must not force onto HTTPS.
+  if (PROD) res.setHeader('strict-transport-security', 'max-age=31536000')
 }
 
 /** Requires a valid session; also enforces the CSRF header on writes. */
@@ -398,7 +399,7 @@ async function handle(req, res) {
       return fail(res, 400, 'baseRevision must be a whole number.')
     }
 
-    const errors = [...validateContent(content), ...lengthProblems(content)]
+    const errors = [...validateContent(content), ...saveProblems(content)]
     if (errors.length) {
       await audit('content.rejected', { actor: session.user.email, detail: errors[0], ip })
       return fail(res, 422, 'Content did not validate.', { errors })

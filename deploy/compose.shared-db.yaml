@@ -1,0 +1,33 @@
+# Shared PostgreSQL on the same server: added to compose.yaml, never used alone.
+#   COMPOSE_FILE=compose.yaml:compose.shared-db.yaml     in the server's .env
+# (bootstrap-env.sh --shared-db writes it). No database service and no database files here:
+# the one volume holds the dumps only, under portfolio/backups. As in compose.yaml the jobs
+# mount that folder alone (pg-folders makes it), so files left by an own database stay out of reach.
+# Needs, made once by the shared server's administrator (README, "Shared PostgreSQL"):
+# the database `portfolio` and the roles portfolio_app and portfolio_backup.
+#   DB_HOST      the server's name on DB_NETWORK       DB_PORT  default 5432
+#   DB_NETWORK   an existing private Docker network that reaches it
+# PostgreSQL 15 to 17 (the role script; pg_dump 17 cannot dump a newer server). Compose 2.26 or newer.
+# UNVERIFIED against a real shared server (deploy/rehearse-shared.sh uses a stand-in).
+services:
+  postgres: !reset null
+
+  app:
+    depends_on: !reset {}
+
+  pg-backup:
+    depends_on: !reset {}
+    environment:
+      PGHOST: ${DB_HOST:?set DB_HOST}
+      PGPORT: ${DB_PORT:-5432}
+
+  pg-restore-test:
+    depends_on: !reset {}
+    environment:
+      PGHOST: ${DB_HOST:?set DB_HOST}
+      PGPORT: ${DB_PORT:-5432}
+
+networks:
+  portfolio-data: !override
+    external: true
+    name: ${DB_NETWORK:?set DB_NETWORK}

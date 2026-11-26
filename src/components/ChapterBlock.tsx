@@ -40,7 +40,7 @@ export function ChapterBlock({ chapter, index, total, onDrive }: Props) {
         <div>
           <div className="flex items-center gap-3">
             <span
-              className="grid size-8 place-items-center rounded-lg border font-mono text-[10px]"
+              className="grid size-8 shrink-0 place-items-center rounded-lg border font-mono text-[10px]"
               style={{
                 borderColor: `color-mix(in oklab, ${chapter.accent} 45%, transparent)`,
                 color: `color-mix(in oklab, ${chapter.accent} var(--accent-strength), var(--ink))`,
@@ -57,7 +57,7 @@ export function ChapterBlock({ chapter, index, total, onDrive }: Props) {
           </h2>
 
           <div className="mt-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
-            <span className="h-px w-6" style={{ background: chapter.accent }} />
+            <span className="h-px w-6 shrink-0" style={{ background: chapter.accent }} />
             {chapter.hint}
           </div>
         </div>

@@ -36,8 +36,8 @@ flowchart LR
 | Container | Role | Network | State |
 |---|---|---|---|
 | `app` | static files, server-rendered page, API | `web`, `portfolio-data` | none |
-| `postgres` | database | `portfolio-data` (internal) | database volume |
-| `pg-backup` | nightly dump | `portfolio-data` | backup volume |
+| `postgres` | database (own database only; none with a shared database) | `portfolio-data` (internal) | database files in the one volume |
+| `pg-backup` | nightly dump | `portfolio-data` | dumps folder of the one volume (`portfolio/backups`) |
 | `pg-restore-test` | on demand: restores the newest dump into a throwaway server | `portfolio-data` | none |
 
 ### 3.3 Server modules (`server/`)

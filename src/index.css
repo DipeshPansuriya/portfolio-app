@@ -126,6 +126,11 @@ html.light {
     transition: background-color 0.5s var(--ease-out-expo), color 0.4s var(--ease-out-expo);
   }
 
+  /* An icon beside text that wraps anywhere keeps its size. */
+  svg {
+    flex-shrink: 0;
+  }
+
   ::selection {
     background: color-mix(in oklab, var(--accent) 32%, transparent);
     color: var(--ink);
