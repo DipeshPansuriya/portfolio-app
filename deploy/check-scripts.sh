@@ -808,5 +808,79 @@ check 'README: it starts the app alone' called x 'up -d --no-deps .* app$'
 check 'README: it records the older image' released x repo/p:old
 check 'README: and keeps the replaced one' grep -qx 'APP_IMAGE=repo/p:cur' "$tmp/x/previous.env"
 
+# ------------------------------------------------------------------ publish-image.sh
+pub="$tmp/publish"
+mkdir -p "$pub/bin"
+repo="$(sed -n 's/^IMAGE_REPO=//p' "$here/../scripts/ci.sh")"
+hex64() { printf "%064d" 0 | tr 0 "$1"; }
+pub_id="sha256:$(hex64 a)"
+pub_digest="sha256:$(hex64 b)"
+echo archive >"$pub/image.tar"
+pub_sum="$(if command -v sha256sum >/dev/null 2>&1; then sha256sum <"$pub/image.tar"; else shasum -a 256 <"$pub/image.tar"; fi | cut -d ' ' -f 1)"
+cat >"$pub/bin/docker" <<'EOF'
+#!/bin/sh
+echo "docker $*" >>"$PUB_LOG"
+case "$*" in
+  login*) cat >/dev/null ;;
+  push*) [ "${STUB_PUSH_FAIL:-0}" != 1 ] ;;
+  *'{{.Id}}'*) echo "${STUB_ID:-$PUB_ID}" ;;
+  *Architecture*) echo "${STUB_PLATFORM:-linux/amd64}" ;;
+  *RepoDigests*) echo "${IMAGE%:*}@$PUB_DIGEST" ;;
+esac
+EOF
+cat >"$pub/bin/curl" <<'EOF'
+#!/bin/sh
+cat >/dev/null
+echo "curl $*" >>"$PUB_LOG"
+case "$*" in
+  *'/token?'*) printf '{"token":"stand-in-bearer"}' ;;
+  *) if grep -q '^docker push' "$PUB_LOG"; then
+       printf 'HTTP/2 200 \r\ndocker-content-digest: %s\r\n\r\n' "${STUB_REMOTE_DIGEST:-$PUB_DIGEST}"
+     else
+       printf 'HTTP/2 %s \r\n\r\n' "${STUB_TAG_STATUS:-404}"
+     fi ;;
+esac
+EOF
+chmod 755 "$pub/bin/docker" "$pub/bin/curl"
+publish() { # [NAME=value...]; one run with good settings, changed by the arguments
+  rm -f "$pub/log" "$pub/digest" "$pub/summary"
+  : >"$pub/log"
+  env PATH="$pub/bin:$PATH" PUB_LOG="$pub/log" PUB_ID="$pub_id" PUB_DIGEST="$pub_digest" \
+    IMAGE="$repo:1.2.3-0123abcd" IMAGE_ID="$pub_id" ARCHIVE_SHA256="$pub_sum" GITHUB_SHA="0123abcd$(hex64 c | cut -c1-32)" \
+    GHCR_USER=someone GHCR_TOKEN=stand-in-token DIGEST_FILE="$pub/digest" GITHUB_STEP_SUMMARY="$pub/summary" \
+    "$@" sh "$here/../scripts/publish-image.sh" "$pub/image.tar" >"$pub/out" 2>&1
+}
+pushed() { grep -q '^docker push' "$pub/log"; }
+refused() { no publish "$@" && no pushed && [ ! -e "$pub/digest" ]; }
+check 'publish: a checked image is pushed' publish
+check 'publish: exactly that one name' test "$(grep '^docker push' "$pub/log")" = "docker push $repo:1.2.3-0123abcd"
+check 'publish: the digest is recorded' grep -qxF "$repo:1.2.3-0123abcd@$pub_digest" "$pub/digest"
+check 'publish: and shown in the run summary' grep -qF "$pub_digest" "$pub/summary"
+check 'publish: the token is in no command line or output' no grep -rqE 'stand-in-(token|bearer)' "$pub/log" "$pub/out" "$pub/summary"
+check 'publish: signs out' grep -q '^docker logout ghcr.io$' "$pub/log"
+check 'publish: an existing tag is never overwritten' refused STUB_TAG_STATUS=200
+check 'publish: it says so' grep -q 'already exists' "$pub/out"
+for status in 401 403 429 500; do
+  check "publish: registry answer $status stops it" refused "STUB_TAG_STATUS=$status"
+done
+check 'publish: never latest' refused "IMAGE=$repo:latest"
+check 'publish: never a dirty build' refused "IMAGE=$repo:1.2.3-0123abcd-dirty"
+check 'publish: never another repository' refused IMAGE=ghcr.io/other/app:1.2.3-0123abcd
+check 'publish: never another commit' refused "IMAGE=$repo:1.2.3-feedbeef"
+check 'publish: a changed archive is refused' refused "ARCHIVE_SHA256=$(hex64 d)"
+check 'publish: another image than gate 8 ran is refused' refused "STUB_ID=sha256:$(hex64 e)"
+check 'publish: only linux/amd64' refused STUB_PLATFORM=linux/arm64
+check 'publish: no token, no push' refused GHCR_TOKEN=
+check 'publish: a failed push fails' no publish STUB_PUSH_FAIL=1
+check 'publish: and records nothing' test ! -e "$pub/digest"
+check 'publish: a digest the registry does not confirm fails' no publish "STUB_REMOTE_DIGEST=sha256:$(hex64 f)"
+check 'publish: and records nothing then' test ! -e "$pub/digest"
+
+# ------------------------------------------------------------------ a release by digest
+by_digest="repo/p:new@$pub_digest"
+new_stack dg repo/p:cur ''
+check 'deploy: a name with tag and digest deploys' deploy dg "$by_digest"
+check 'deploy: and is recorded with its digest' released dg "$by_digest"
+
 [ "$failed" = 0 ] || { echo '[check-scripts] FAILED' >&2; exit 1; }
 echo '[check-scripts] passed'

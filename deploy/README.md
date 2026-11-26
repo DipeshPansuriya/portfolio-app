@@ -4,6 +4,7 @@ Date: 2026-11-26. Design: [ADR 0004](../docs/adr/0004-deploy-hostinger-vps.md),
 [ADR 0005](../docs/adr/0005-database-storage-and-backups.md).
 
 **Status: tested on one Mac only. The pipeline is not active. No image is pushed and nothing is deployed.**
+A second way to publish the image, without Jenkins: [Release image from GitHub Actions](#release-image-from-github-actions-nothing-is-built-on-the-server).
 **Storage: one volume (an existing shared one if the server has it). Shared PostgreSQL if the server has one,
 else the own database of `compose.yaml`; which applies is PROVISIONAL until a check of the target server.**
 
@@ -130,6 +131,49 @@ touches the stack.
   build user (its daemon, containers and agent), below what is free, so that the build fails and not the server.
   Nothing in this repository sets or checks such a cap. UNVERIFIED.
 
+## Release image from GitHub Actions (nothing is built on the server)
+
+For a release without Jenkins: the server has too little free memory to build.
+Workflow `.github/workflows/publish-image.yml`, **UNVERIFIED: it has not run yet**.
+
+```
+ started by hand on main (workflow_dispatch)
+   |
+   v   job build (ubuntu-24.04, x86_64; contents: read)
+ scripts/ci.sh 1 5 6 7 8 --> docker save --> artifact release-image (kept 1 day)
+   |                                          + image ID and checksum as job outputs
+   v   job push (contents: read, packages: write; secret: the automatic GITHUB_TOKEN)
+ scripts/publish-image.sh: checksum, image ID, amd64, tag free? --> push <version>-<commit>
+   |
+   v   artifact image-digest and the run summary: <name>:<tag>@sha256:<digest>
+ server: docker pull that exact line, verify, deploy.sh
+```
+
+- **Start:** Actions, "Publish image", "Run workflow", branch `main`. Over the API the token needs "Actions: write".
+  A tag does not start it: `v*` tags cannot be moved or deleted here, so a failed run would use up a version.
+- Gates 2-4 (types, tests) are not repeated: the `Quality` checks of the same commit must be green.
+- A tag that exists is refused, and so is any registry answer other than "not found". Release a new commit.
+  `latest` is never pushed. The Jenkins stage 9 has no such check: use **one** publisher per commit.
+- The first push makes the package. Make it **public** once (package settings), else the server cannot pull it.
+
+On the server, as root, with the line from the run summary:
+
+```sh
+IMG='<name>:<version>-<commit>@sha256:<digest>'
+name="${IMG%@*}"
+docker pull "$IMG" &&
+  docker image inspect -f '{{range .RepoDigests}}{{println .}}{{end}}' "$IMG" | grep -qxF "${name%:*}@${IMG##*@}" &&
+  [ "$(docker image inspect -f '{{.Os}}/{{.Architecture}}' "$IMG")" = linux/amd64 ] &&
+  echo verified
+```
+
+Only after `verified`: `sh deploy.sh "$IMG"`. `release.env` then holds the name with its digest, and a rollback
+uses the same form. Compare the digest, not the image ID: a server with the containerd image store shows another ID.
+
+**Memory to pull and run** (limits of `compose.yaml`): app 256 MiB, database 256 MiB, nightly dump job 64 MiB
+(576 MiB steady); the restore test adds 320 MiB and a one-off dump 64 MiB (960 MiB at most). Pulling needs no
+build memory; its own use is not measured. Go limit: 1.5 GiB available.
+
 ## Go-live blockers
 
 | Blocker | Cleared when |
@@ -151,6 +195,7 @@ touches the stack.
 | `postgres-init/10-app-role.sh` | database `portfolio` owned by `portfolio_owner` (cannot sign in), roles `portfolio_app` and `portfolio_backup` (read only), with checks; first start, safe to rerun |
 | `postgres-accepted.trivyignore.yaml` | the accepted findings of the PostgreSQL image, with expiry date (below) |
 | `backup/backup.sh`, `backup/check.sh`, `backup/restore-test.sh` | dump, dump health, restore check |
+| `../scripts/publish-image.sh` | publish workflow: checks the saved image, pushes it once, records the digest |
 | `load-release.sh` | pipeline stage 9: checks the image archive, then loads it (deploy agent; not copied to the server folder) |
 | `deploy.sh`, `post-deploy-check.sh`, `checks/probe.mjs` | deploy, rollback, checks |
 | `check-pipeline.sh`, `check-scripts.sh` | static and stand-in checks (no Docker); also in Jenkins `prepare` |
@@ -180,6 +225,7 @@ touches the stack.
 | `DEPLOY_USER` | no | Jenkins | `uid:gid` of the helper containers: two numbers, both above 0 |
 | `DEPLOY_APPROVER` | no | Jenkins, global | user IDs that may approve a release, commas, no spaces; unset = no release |
 | `IMAGE_ID_FILE` | no | set by `Jenkinsfile` | where gate 8 writes the ID of the image it ran |
+| `GHCR_USER`, `GHCR_TOKEN` | token: yes | publish workflow | the run's actor and automatic `GITHUB_TOKEN`; nothing is stored |
 | `ghcr-creds` | yes | Jenkins credential | GitHub user and a token that may write packages |
 | `KEEP_IMAGES`, `IMAGE_KEEP_OLDER` | no | `ci.sh` | clean-up of local tags (below); stage 11 sets the first |
 | `CI_OFFLINE`, `TRIVY_DB_UPDATE`, `TRIVY_CACHE_DIR`, `SOURCE_URL` | no | `ci.sh` | optional |

@@ -80,14 +80,18 @@ Already true in the workflow files today:
 
 | Action | Tag | Used in |
 |---|---|---|
-| `actions/checkout` | v7.0.1 | all three workflows |
+| `actions/checkout` | v7.0.1 | all four workflows |
 | `actions/setup-python` | v7.1.0 | all three workflows |
-| `actions/setup-node` | v7.1.0 | all three workflows |
+| `actions/setup-node` | v7.1.0 | all four workflows |
 | `actions/github-script` | v9.0.0 | `pr-review.yml` |
+| `actions/upload-artifact` | v7.0.2 | `publish-image.yml` |
+| `actions/download-artifact` | v8.0.2 | `publish-image.yml` |
 
 Each is pinned to a commit hash. No workflow uses `pull_request_target`. `security.yml` and `quality.yml` ask for
 `contents: read` only. `pr-review.yml` is `contents: read` too, except its comment job, the only job with
 `pull-requests: write`. That job checks out nothing and runs no code from the pull request.
+`publish-image.yml` is started by hand on `main` only; only its push job has `packages: write`, and that job runs no
+build code ([deploy guide](../deploy/README.md)).
 
 ## 5. Scanning and dependency updates
 

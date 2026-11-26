@@ -60,7 +60,7 @@ echo 'ok: one volume; the shared-database file has no database service of its ow
 # scripts/ci.sh names the app image; Jenkins asks it, a server records it in release.env.
 repo="$(sed -n 's/^IMAGE_REPO=//p' scripts/ci.sh)"
 [ -n "$repo" ] && [ "$(grep -c '^IMAGE_REPO=' scripts/ci.sh)" = 1 ] || die 'scripts/ci.sh must set IMAGE_REPO once'
-elsewhere="$(grep -lF "$repo" Jenkinsfile Dockerfile deploy/*.yaml deploy/*.sh .github/workflows/*.yml || true)"
+elsewhere="$(grep -lF "$repo" Jenkinsfile Dockerfile deploy/*.yaml deploy/*.sh .github/workflows/*.yml scripts/publish-image.sh || true)"
 [ -z "$elsewhere" ] || die "the image name is repeated in: $elsewhere"
 grep -q "script: 'sh scripts/ci.sh --image'" Jenkinsfile || die 'the Jenkinsfile must take the image name from ci.sh'
 echo "ok: the image name $repo is defined in scripts/ci.sh only"
@@ -204,3 +204,29 @@ echo 'ok: the main-only guard is there'
 ! grep -q 'deploy\.sh --rollback' Jenkinsfile && grep -q 'deploy\.sh --undo "\$1"' Jenkinsfile ||
   die 'stage 11 must roll back with deploy.sh --undo "$1", never --rollback'
 echo 'ok: stage 11 undoes only the switch made by this build'
+
+# The publish workflow: started by hand, main only, packages: write in the push job only.
+publish=.github/workflows/publish-image.yml
+[ -f "$publish" ] || die "no $publish"
+code="$(grep -v '^ *#' "$publish")"
+triggers="$(echo "$code" | awk '/^on:/ { s = 1; print; next } /^[^ ]/ { s = 0 } s && NF')"
+[ "$triggers" = "$(printf 'on:\n  workflow_dispatch:')" ] || die "$publish may be started by hand only (workflow_dispatch)"
+echo "$code" | grep -qx 'permissions: {}' || die "$publish must give no permission by default"
+build_job="$(echo "$code" | sed -n '/^  build:$/,/^  push:$/p')"
+push_job="$(echo "$code" | sed -n '/^  push:$/,$p')"
+[ "$(cat .github/workflows/*.yml | grep -cE '^ *packages: *write')" = 1 ] &&
+  echo "$push_job" | grep -qE '^      packages: write$' ||
+  die 'packages: write belongs to the push job of the publish workflow only'
+[ "$(echo "$code" | grep -cE ': *write *$')" = 1 ] || die "$publish asks for another write permission"
+echo "$build_job" | grep -qF '[ "$GITHUB_REF" = refs/heads/main ]' &&
+  echo "$push_job" | grep -qxF "    if: github.ref == 'refs/heads/main'" &&
+  echo "$push_job" | grep -qx '    needs: build' || die "$publish: both jobs are for main only, push after build"
+echo "$build_job" | grep -qE '^ +run: sh scripts/ci.sh 1 5 6 7 8$' || die "$publish must run the image gates 1 5 6 7 8"
+! echo "$code" | grep -qE 'continue-on-error|always\(\)|latest|docker (push|login|build)|secrets\.' ||
+  die "$publish: no ignored failure, latest, own push or build, or stored secret"
+! echo "$push_job" | grep -qE 'scripts/ci\.sh|npm |setup-node' || die 'the push job runs no build code'
+echo "$push_job" | grep -qE '^ +run: sh scripts/publish-image.sh release-image.tar$' ||
+  die 'the push job must push through scripts/publish-image.sh'
+! echo "$code" | grep -E '^ *(- )?uses:' | grep -vqE '@[0-9a-f]{40}( |$)' || die "$publish: an action is not pinned to a commit"
+echo "$code" | grep -qx '  cancel-in-progress: false' || die "$publish: one publish run at a time, none cancelled"
+echo 'ok: publish is manual, main only; one job may write packages'
